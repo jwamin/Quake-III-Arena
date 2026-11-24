@@ -36,7 +36,7 @@ Not tested or not available:
 |---|---|
 | Linux x86_64 | built and played (gcc and clang) |
 | Linux arm64 | builds in CI (not run) |
-| macOS Apple Silicon | built and reaches the main menu (Apple clang, Homebrew SDL2; gameplay and sound not yet checked; no CI job) |
+| macOS Apple Silicon | built and reaches the main menu, from the makefile and as a sandboxed app (`macos/quake3`); gameplay and sound not yet checked; no CI job |
 | macOS Intel | untested |
 | FreeBSD, others with SDL2 | untested |
 | Windows | not supported yet |
@@ -61,6 +61,23 @@ make -f Makefile.sdl CONFIG=debug -j8    # debug build
 Output goes to `build/<os>-<arch>-<config>/` (`quake3` and `q3ded`). Delete
 that directory to clean. Header dependencies are tracked, so rebuilds are
 correct.
+
+### macOS app
+
+`macos/quake3/quake3.xcodeproj` wraps the engine in a sandboxed, signed
+`quake3.app` (Apple Silicon only). It needs Xcode and Homebrew's `sdl2` and
+`sdl3` (Homebrew's `sdl2` is sdl2-compat, which loads SDL3 at runtime).
+
+```sh
+cd macos/quake3
+xcodebuild -scheme quake3 -configuration Debug build   # or build and run in Xcode
+```
+
+A "Build Engine" script phase runs `make -f Makefile.sdl applib`, which builds
+the client as `libquake3.a` with `main()` renamed to `Q3_Main()` (`-DQ3_APP`).
+An "Embed SDL" phase copies both SDL dylibs into `Contents/Frameworks` and
+signs them with the app's identity. The app only needs Homebrew to build, not
+to run.
 
 `Makefile.sdl` is the portable build. The original `Makefile` (i386 only,
 X11/OSS) is kept as it was, apart from an x86_64 branch.
@@ -104,6 +121,12 @@ cd code/unix
 
 The home directory (config, saves, screenshots) is `~/.q3a` on Linux and
 `~/Library/Application Support/Quake3` on macOS.
+
+The macOS app asks for the game folder (the one containing `baseq3`) on first
+launch and remembers it with a security-scoped bookmark; hold Option while
+launching to choose again. Its config and saves live in the sandbox container,
+`~/Library/Containers/com.jossy.quake3/Data/Library/Application Support/Quake3`.
+`+` arguments passed to the app go to the game as usual.
 
 `run_q3.sh` points the game at `run/` and sets `sv_pure 0`. Any extra
 arguments are passed to the game. Console commands typed in-game need a

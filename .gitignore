@@ -10,3 +10,6 @@
 *.pk3
 /baseq3/
 /missionpack/
+
+# Xcode per-user state
+xcuserdata/
