@@ -1,9 +1,9 @@
-# Quake III Arena — 64-bit Linux / SDL2 port
+# Quake III Arena — 64-bit Linux / macOS SDL2 port
 
 A fork of [id-Software/Quake-III-Arena](https://github.com/id-Software/Quake-III-Arena)
 (the 2005 GPL source release, version 1.32b) that builds and runs natively on a
 current 64-bit Linux system. It was developed and tested on Fedora (x86_64,
-gcc 16, Wayland, Mesa).
+gcc 16, Wayland, Mesa), and also builds and runs on macOS (Apple Silicon).
 
 The original release only builds as 32-bit i386 and depends on things that no
 longer exist on modern systems: `/dev/dsp` (OSS), XFree86 DGA/VidMode, nasm
@@ -36,7 +36,8 @@ Not tested or not available:
 |---|---|
 | Linux x86_64 | built and played (gcc and clang) |
 | Linux arm64 | builds in CI (not run) |
-| macOS (Apple Silicon / Intel) | prepared, **not yet built or run** (no CI job for it yet) |
+| macOS Apple Silicon | built and reaches the main menu (Apple clang, Homebrew SDL2; gameplay and sound not yet checked; no CI job) |
+| macOS Intel | untested |
 | FreeBSD, others with SDL2 | untested |
 | Windows | not supported yet |
 
@@ -116,7 +117,8 @@ leading `/`, otherwise they are sent as chat.
 - **Portability groundwork**: the renderer takes its GL header from SDL (no
   GLX/X11 needed), macOS-specific context setup, home directory and
   `Sys_ProcessorCount`, arm64 CPU strings, and C versions of the float helpers
-  on every non-i386 target.
+  on every non-i386 target. On macOS the SDL build uses the same
+  `Com_Memcpy`/`Com_Memset`/`Snd_Memset` and network headers as Linux.
 - **SDL2 platform layer**: `code/unix/sdl_glimp.c` (window, GL context, input,
   gamma) and `code/unix/sdl_snd.c` (audio). `linux_qgl.c` loads GL functions
   through SDL when built with `-DUSE_SDL`. The old X11/GLX/OSS files are kept
