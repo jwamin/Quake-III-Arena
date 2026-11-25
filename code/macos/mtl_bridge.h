@@ -1,0 +1,121 @@
+/*
+===========================================================================
+Metal port: the interface between the C engine and the Swift platform layer.
+
+This header is imported by Swift (as its bridging header) and included by C.
+It holds plain C types only, so it can be imported without the engine
+headers. It declares:
+  - the vertex and per-draw state structures that mtl_qgl.c fills in and
+    MetalRenderer.swift consumes (the uniform blocks match Shaders.swift);
+  - the C callbacks the Swift side calls (MacQ_*), implemented in mac_glimp.c.
+
+The functions implemented in Swift (@_cdecl) are declared for C in
+mtl_swift.h, which Swift does not import.
+===========================================================================
+*/
+#ifndef __MTL_BRIDGE_H__
+#define __MTL_BRIDGE_H__
+
+#include <stdint.h>
+
+// One vertex as the Metal vertex shader reads it (32 bytes, tightly packed).
+typedef struct {
+	float   xyz[3];
+	float   st0[2];
+	float   st1[2];
+	uint8_t color[4];
+} mtl_vertex_t;
+
+// Vertex stage uniforms (matches VSUniforms in Shaders.swift).
+typedef struct {
+	float   mvp[16];        // column-major, OpenGL clip space
+	float   clipPlane[4];   // user clip plane in object space
+	int32_t clipEnable;
+	int32_t pad[3];
+} mtl_vs_uniforms_t;
+
+// Fragment stage uniforms (matches FSUniforms in Shaders.swift).
+typedef struct {
+	int32_t tex0Enable;
+	int32_t tex1Enable;
+	int32_t env0;           // MTL_ENV_*
+	int32_t env1;
+	int32_t alphaFunc;      // MTL_CMP_*; MTL_CMP_ALWAYS disables the test
+	float   alphaRef;
+	int32_t pad[2];
+} mtl_fs_uniforms_t;
+
+enum { MTL_ENV_MODULATE, MTL_ENV_REPLACE, MTL_ENV_DECAL, MTL_ENV_ADD };
+
+// Same order as MTLCompareFunction.
+enum { MTL_CMP_NEVER, MTL_CMP_LESS, MTL_CMP_EQUAL, MTL_CMP_LEQUAL,
+       MTL_CMP_GREATER, MTL_CMP_NOTEQUAL, MTL_CMP_GEQUAL, MTL_CMP_ALWAYS };
+
+// Same order as MTLBlendFactor (the subset OpenGL 1.x has).
+enum { MTL_BLEND_ZERO, MTL_BLEND_ONE, MTL_BLEND_SRC_COLOR, MTL_BLEND_ONE_MINUS_SRC_COLOR,
+       MTL_BLEND_SRC_ALPHA, MTL_BLEND_ONE_MINUS_SRC_ALPHA, MTL_BLEND_DST_COLOR,
+       MTL_BLEND_ONE_MINUS_DST_COLOR, MTL_BLEND_DST_ALPHA, MTL_BLEND_ONE_MINUS_DST_ALPHA,
+       MTL_BLEND_SRC_ALPHA_SATURATE };
+
+// Same order as MTLStencilOperation (the subset OpenGL 1.x has).
+enum { MTL_STENCIL_KEEP, MTL_STENCIL_ZERO, MTL_STENCIL_REPLACE, MTL_STENCIL_INCR,
+       MTL_STENCIL_DECR, MTL_STENCIL_INVERT };
+
+enum { MTL_CULL_NONE, MTL_CULL_FRONT, MTL_CULL_BACK };
+
+enum { MTL_PRIM_TRIANGLES, MTL_PRIM_LINES, MTL_PRIM_POINTS };
+
+enum { MTL_FILTER_NEAREST, MTL_FILTER_LINEAR };
+enum { MTL_MIP_NONE, MTL_MIP_NEAREST, MTL_MIP_LINEAR };
+enum { MTL_WRAP_REPEAT, MTL_WRAP_CLAMP };
+
+enum { MTL_READ_RGB, MTL_READ_RGBA, MTL_READ_DEPTH, MTL_READ_STENCIL };
+
+enum { MTL_CLEAR_COLOR = 1, MTL_CLEAR_DEPTH = 2, MTL_CLEAR_STENCIL = 4 };
+
+// Everything the OpenGL state machine contributes to one draw.
+typedef struct {
+	mtl_vs_uniforms_t vs;
+	mtl_fs_uniforms_t fs;
+
+	int32_t  tex0, tex1;            // texture names (0 = white)
+
+	// render pipeline: blending and color writes
+	uint8_t  blendEnable;
+	uint8_t  blendSrc, blendDst;    // MTL_BLEND_*
+	uint8_t  colorMask;             // bit 0 red .. bit 3 alpha
+
+	// depth / stencil
+	uint8_t  depthTest, depthWrite, depthFunc;
+	uint8_t  stencilTest, stencilFunc;
+	uint8_t  stencilFail, stencilZFail, stencilZPass;
+	uint8_t  stencilRef, stencilReadMask, stencilWriteMask;
+
+	// rasterizer
+	uint8_t  cullMode;              // MTL_CULL_*
+	uint8_t  wireframe;
+	uint8_t  polygonOffset;
+	float    offsetFactor, offsetUnits;
+
+	// viewport and scissor in OpenGL window coordinates (origin bottom left)
+	int32_t  viewport[4];
+	float    depthNear, depthFar;
+	uint8_t  scissorEnable;
+	int32_t  scissor[4];
+} mtl_state_t;
+
+// ---- implemented in C (mac_glimp.c), called from Swift ----
+
+// A key went down or up. macKey is the virtual key code (kVK_*), ch the
+// character the key types without modifiers (0 when it types nothing).
+void MacQ_KeyEvent( int macKey, int ch, int down );
+// Text input, one Unicode scalar at a time.
+void MacQ_CharEvent( int ch );
+void MacQ_MouseMove( int dx, int dy );
+void MacQ_MouseButton( int button, int down );
+void MacQ_MouseWheel( int delta );
+void MacQ_Quit( void );
+// Print to the engine console.
+void MacQ_Print( const char *msg );
+
+#endif

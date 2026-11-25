@@ -97,7 +97,6 @@
 				08EAC35C30B5E04400C18848 /* Sources */,
 				08EAC35D30B5E04400C18848 /* Frameworks */,
 				08EAC35E30B5E04400C18848 /* Resources */,
-				0A51E0F230B6000100C18848 /* Embed SDL */,
 			);
 			buildRules = (
 			);
@@ -232,25 +231,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"$SRCROOT/scripts/build_engine.sh\"\n";
-		};
-		0A51E0F230B6000100C18848 /* Embed SDL */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Embed SDL";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"$SRCROOT/scripts/embed_sdl.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -435,8 +415,7 @@
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"$(DERIVED_FILE_DIR)/engine/libquake3.a",
-					"$(DERIVED_FILE_DIR)/engine/Frameworks/libSDL2-2.0.0.dylib",
+					"$(DERIVED_FILE_DIR)/engine/libquake3-metal.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -480,8 +459,7 @@
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
-					"$(DERIVED_FILE_DIR)/engine/libquake3.a",
-					"$(DERIVED_FILE_DIR)/engine/Frameworks/libSDL2-2.0.0.dylib",
+					"$(DERIVED_FILE_DIR)/engine/libquake3-metal.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3;
 				PRODUCT_NAME = "$(TARGET_NAME)";

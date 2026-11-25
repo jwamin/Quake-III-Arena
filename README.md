@@ -36,14 +36,15 @@ Not tested or not available:
 |---|---|
 | Linux x86_64 | built and played (gcc and clang) |
 | Linux arm64 | builds in CI (not run) |
-| macOS Apple Silicon | built and reaches the main menu, from the makefile and as a sandboxed app (`macos/quake3`); gameplay and sound not yet checked; no CI job |
+| macOS Apple Silicon | SDL2/OpenGL build from the makefile; Metal + Swift build from the makefile and as a sandboxed app (`macos/quake3`); maps, menus, cinematics and `vid_restart` checked with screenshots, input and sound not yet checked by hand; no CI job |
 | macOS Intel | untested |
 | FreeBSD, others with SDL2 | untested |
 | Windows | not supported yet |
 
 The engine is C-only (no JIT, no assembly) and 64-bit clean, so there is
 nothing CPU-specific. Everything platform-dependent lives in the SDL2 layer
-(`code/unix/sdl_glimp.c`, `sdl_snd.c`).
+(`code/unix/sdl_glimp.c`, `sdl_snd.c`), or on macOS, optionally, in the
+Metal + Swift layer (`code/macos`, see below).
 
 ## Building
 
@@ -62,22 +63,63 @@ Output goes to `build/<os>-<arch>-<config>/` (`quake3` and `q3ded`). Delete
 that directory to clean. Header dependencies are tracked, so rebuilds are
 correct.
 
+### macOS: Metal + Swift
+
+On macOS the engine can also run without SDL and without OpenGL:
+
+```sh
+cd code/unix
+make -f Makefile.sdl -j8 metal           # build/darwin-arm64-release/quake3-metal
+```
+
+Requirements: Xcode or the command line tools (clang and swiftc). The shaders
+are compiled at startup, so the separate Metal toolchain is not needed.
+
+`code/macos` holds the platform layer:
+
+| File | |
+|---|---|
+| `Platform.swift` | AppKit window with a `CAMetalLayer`, event pump, keyboard, relative mouse |
+| `MetalRenderer.swift` | Metal backend: pipeline/depth-stencil state caches, per-frame vertex arenas, textures, offscreen frame, present pass with the gamma ramp, read-back for screenshots |
+| `Shaders.swift` | MSL for the fixed-function pipeline the renderer expects (vertex colour, two texture units with GL texture environments, alpha test, user clip plane) |
+| `Audio.swift` | sound output through an `AVAudioSourceNode` |
+| `mtl_qgl.c` | the renderer's `qgl*` calls (state, matrices, client arrays, immediate mode) implemented on top of the Metal backend |
+| `mac_glimp.c`, `mac_snd.c` | `GLimp_*`, `IN_*` and `SNDDMA_*` for the engine, key mapping |
+| `mtl_bridge.h`, `mtl_swift.h`, `mac_gl.h` | the C/Swift interface, and the GL types and tokens the renderer source uses |
+
+The renderer itself (`code/renderer`) is unchanged: it still issues its
+OpenGL 1.x call sequence, and `mtl_qgl.c` turns each draw into one Metal draw
+with the matching pipeline state. The frame is drawn at the engine resolution
+(`r_mode`) into an offscreen target and scaled to the window, keeping the
+aspect ratio. Gamma and overbright lighting are applied when the frame is
+presented, so they also work in a window (the GL build turns overbright off
+when windowed).
+
+Not implemented: SMP renderer, joysticks/game controllers, clipboard paste.
+`r_measureOverdraw` and light flares (`r_flares 1`) read the stencil and
+depth buffers back, which stalls the frame (as on GL); overdraw is checked,
+flares run but have not been checked by eye. The cloud-layer sky on q3dm17 is
+black in both the GL and the Metal build (an existing engine bug, not yet
+investigated); skyboxes such as q3dm1's draw.
+
+On an M4, the `four` timedemo at 1024x768 runs at about 520 fps with Metal
+and 573 fps with the SDL/OpenGL build.
+
 ### macOS app
 
-`macos/quake3/quake3.xcodeproj` wraps the engine in a sandboxed, signed
-`quake3.app` (Apple Silicon only). It needs Xcode and Homebrew's `sdl2` and
-`sdl3` (Homebrew's `sdl2` is sdl2-compat, which loads SDL3 at runtime).
+`macos/quake3/quake3.xcodeproj` wraps the Metal + Swift engine in a
+sandboxed, signed `quake3.app` (Apple Silicon only). It needs Xcode, nothing
+else.
 
 ```sh
 cd macos/quake3
 xcodebuild -scheme quake3 -configuration Debug build   # or build and run in Xcode
 ```
 
-A "Build Engine" script phase runs `make -f Makefile.sdl applib`, which builds
-the client as `libquake3.a` with `main()` renamed to `Q3_Main()` (`-DQ3_APP`).
-An "Embed SDL" phase copies both SDL dylibs into `Contents/Frameworks` and
-signs them with the app's identity. The app only needs Homebrew to build, not
-to run.
+A "Build Engine" script phase runs `make -f Makefile.sdl metal-applib`,
+which builds the client and its Swift platform layer as `libquake3-metal.a`
+with `main()` renamed to `Q3_Main()` (`-DQ3_APP`). The app links only system
+frameworks.
 
 `Makefile.sdl` is the portable build. The original `Makefile` (i386 only,
 X11/OSS) is kept as it was, apart from an x86_64 branch.
@@ -154,6 +196,9 @@ leading `/`, otherwise they are sent as chat.
   (`long double` tokens crash at `-O2` otherwise).
 - **Demo restrictions are opt-in** (`+set fs_restrict 1`). A source build has
   no retail product id, so the original code always dropped into demo mode.
+- **Metal + Swift platform layer for macOS** (`code/macos`): window, input
+  and sound in Swift, and the renderer's GL calls translated to a Metal
+  backend; used by `make metal` and the macOS app, which no longer needs SDL.
 - **`code/unix/build_qvms.sh`** rebuilds the game, cgame and ui QVMs with the
   tree's own `lcc` and `q3asm`.
 

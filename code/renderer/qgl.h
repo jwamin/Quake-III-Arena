@@ -30,6 +30,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include <GL/gl.h>
 
+#elif defined( USE_METAL )
+
+// Metal port (code/macos): no OpenGL library; the qgl* pointers are bound to
+// mtl_qgl.c, which translates the calls to Metal. Types and tokens only.
+#include "../macos/mac_gl.h"
+
 #elif defined( USE_SDL )
 
 // SDL2 platform layer (Linux, macOS, BSD, ...): GL header from SDL, no GLX/WGL.
@@ -164,7 +170,7 @@ extern	void ( APIENTRY * qglUnlockArraysEXT) (void);
 //===========================================================================
 
 // non-windows systems will just redefine qgl* to gl*
-#if !defined( USE_SDL ) && !defined( _WIN32 ) && !defined(MACOS_X) && !defined( __linux__ ) && !defined( __FreeBSD__ ) // rb010123
+#if !defined( USE_SDL ) && !defined( USE_METAL ) && !defined( _WIN32 ) && !defined(MACOS_X) && !defined( __linux__ ) && !defined( __FreeBSD__ ) // rb010123
 
 #include "qgl_linked.h"
 
@@ -551,7 +557,7 @@ extern BOOL ( WINAPI * qwglSwapIntervalEXT)( int interval );
 
 #endif	// _WIN32
 
-#if !defined( USE_SDL ) && ( (defined __linux__ )  || (defined __FreeBSD__ ) ) // rb010123
+#if !defined( USE_SDL ) && !defined( USE_METAL ) && ( (defined __linux__ )  || (defined __FreeBSD__ ) ) // rb010123
 
 //FX Mesa Functions
 // bk001129 - from cvs1.17 (mkv)

@@ -24,7 +24,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Start the engine once launching has finished. Q3_Main never returns:
-        // its loop runs on the main thread and SDL pumps AppKit events.
+        // its loop runs on the main thread and pumps AppKit events itself
+        // (code/macos/Platform.swift) and renders with Metal.
         DispatchQueue.main.async {
             self.runEngine(basePath: gameFolder.path)
         }
