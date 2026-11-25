@@ -16,7 +16,7 @@ import QuartzCore
 // MARK: - Per-frame buffer arena
 
 /// Linear allocator over shared MTLBuffers. Reset once the GPU is done with the frame.
-private final class FrameArena {
+nonisolated private final class FrameArena {
     private let device: MTLDevice
     private var buffers: [MTLBuffer] = []
     private var current = 0
@@ -55,9 +55,29 @@ private final class FrameArena {
     }
 }
 
+// MARK: - Frame completion
+
+/// The newest frame the GPU has finished, written from Metal's completion threads.
+nonisolated private final class CompletedFrame: @unchecked Sendable {
+    private let lock = NSLock()
+    private var frame = -1
+
+    func mark(_ finished: Int) {
+        lock.lock()
+        frame = max(frame, finished)
+        lock.unlock()
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return frame
+    }
+}
+
 // MARK: - Textures
 
-private struct TextureEntry {
+nonisolated private struct TextureEntry {
     var texture: MTLTexture?
     var samplerKey: UInt16 = 0
     var lastUsedFrame: Int = -1
@@ -65,8 +85,11 @@ private struct TextureEntry {
 
 // MARK: - Renderer
 
-final class MetalRenderer {
-    static private(set) var shared: MetalRenderer?
+// Not tied to an actor: the engine calls it on the main thread, and Metal
+// runs its completion handlers on its own threads. (The macOS app target
+// defaults to MainActor isolation.)
+nonisolated final class MetalRenderer {
+    nonisolated(unsafe) static private(set) var shared: MetalRenderer?
 
     let device: MTLDevice
     let width: Int
@@ -95,8 +118,7 @@ final class MetalRenderer {
     private let inFlight = DispatchSemaphore(value: MetalRenderer.framesInFlight)
     private var arenas: [FrameArena] = []
     private var frameNumber = 0
-    private let completedLock = NSLock()
-    private var completedFrame = -1
+    private let completed = CompletedFrame()
 
     // current frame
     private var frameStarted = false
@@ -304,12 +326,8 @@ final class MetalRenderer {
         }
 
         let finished = frameNumber
-        buffer.addCompletedHandler { [weak self, inFlight] _ in
-            if let self {
-                self.completedLock.lock()
-                self.completedFrame = max(self.completedFrame, finished)
-                self.completedLock.unlock()
-            }
+        buffer.addCompletedHandler { [completed, inFlight] _ in
+            completed.mark(finished)
             inFlight.signal()
         }
         buffer.commit()
@@ -748,9 +766,7 @@ final class MetalRenderer {
     }
 
     private var lastCompletedFrame: Int {
-        completedLock.lock()
-        defer { completedLock.unlock() }
-        return completedFrame
+        completed.value
     }
 
     func texImage(_ texnum: Int, level: Int, width w: Int, height h: Int, data: UnsafeRawPointer, alphaOne: Bool) {
@@ -848,7 +864,7 @@ final class MetalRenderer {
 
 // MARK: - Console output
 
-func MacPrint(_ message: String) {
+nonisolated func MacPrint(_ message: String) {
     message.withCString { MacQ_Print($0) }
 }
 

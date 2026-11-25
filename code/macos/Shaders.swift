@@ -7,7 +7,7 @@
 // The uniform structs match mtl_vs_uniforms_t / mtl_fs_uniforms_t in mtl_bridge.h.
 //
 
-let q3ShaderSource = """
+nonisolated let q3ShaderSource = """
 #include <metal_stdlib>
 using namespace metal;
 

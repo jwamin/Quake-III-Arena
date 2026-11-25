@@ -116,10 +116,12 @@ cd macos/quake3
 xcodebuild -scheme quake3 -configuration Debug build   # or build and run in Xcode
 ```
 
-A "Build Engine" script phase runs `make -f Makefile.sdl metal-applib`,
-which builds the client and its Swift platform layer as `libquake3-metal.a`
-with `main()` renamed to `Q3_Main()` (`-DQ3_APP`). The app links only system
-frameworks.
+The app target compiles the Metal + Swift layer itself: `code/macos` is in
+the project as the "Metal port (code/macos)" folder group, so its Swift and C
+files can be edited and debugged in Xcode. A "Build Engine" script phase runs
+`make -f Makefile.sdl metal-enginelib`, which builds the rest of the engine as
+`libquake3-engine.a` with `main()` renamed to `Q3_Main()` (`-DQ3_APP`). The
+app links only system frameworks.
 
 `Makefile.sdl` is the portable build. The original `Makefile` (i386 only,
 X11/OSS) is kept as it was, apart from an x86_64 branch.

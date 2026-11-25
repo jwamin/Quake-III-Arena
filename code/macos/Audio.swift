@@ -9,7 +9,9 @@
 
 import AVFoundation
 
-private final class AudioOutput {
+// The render block runs on the audio thread, so nothing here is MainActor
+// isolated (the macOS app target defaults to MainActor).
+nonisolated private final class AudioOutput {
     private let engine = AVAudioEngine()
     private let source: AVAudioSourceNode
 

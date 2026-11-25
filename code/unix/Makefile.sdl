@@ -12,7 +12,7 @@
 #   make -f Makefile.sdl client | ded
 #   make -f Makefile.sdl applib              static library for the macOS app (macos/quake3)
 #   make -f Makefile.sdl metal               macOS: Metal + Swift client (no SDL, no OpenGL)
-#   make -f Makefile.sdl metal-applib        macOS: the Metal client as a library for the app
+#   make -f Makefile.sdl metal-enginelib     macOS: the engine without code/macos, for the app
 #
 # Output: ../../build/<os>-<arch>-<config>/{quake3,q3ded,quake3-metal}   (delete that directory to clean)
 # Requires: SDL2 development files and either pkg-config or sdl2-config (SDL
@@ -199,17 +199,20 @@ METAL_LAYER := mtl_qgl mac_glimp mac_snd
 METAL_OBJ := $(addprefix $(BUILD)/metal/,$(addsuffix .o,$(SRC_CLIENT) $(SRC_SERVER) $(SRC_QCOMMON) \
                $(SRC_GAME) $(SRC_BOTLIB) $(SRC_JPEG) $(SRC_RENDERER) $(UNIX_COMMON) $(METAL_LAYER))) \
              $(BUILD)/metal/q3metal_swift.o
-METAL_APP_OBJ := $(filter-out $(BUILD)/metal/unix_main.o,$(METAL_OBJ)) $(BUILD)/metal-app/unix_main.o
+# The macOS app (macos/quake3) compiles code/macos itself; it links the rest.
+METAL_ENGINE_OBJ := $(filter-out $(BUILD)/metal/unix_main.o $(BUILD)/metal/q3metal_swift.o \
+                      $(addprefix $(BUILD)/metal/,$(addsuffix .o,$(METAL_LAYER))),$(METAL_OBJ)) \
+                    $(BUILD)/metal-app/unix_main.o
 
 metal: $(BUILD)/quake3-metal
-metal-applib: $(BUILD)/libquake3-metal.a
+metal-enginelib: $(BUILD)/libquake3-engine.a
 
 $(BUILD)/quake3-metal: $(METAL_OBJ)
 	$(SWIFTC) -o $@ $(METAL_OBJ)
 
-$(BUILD)/libquake3-metal.a: $(METAL_APP_OBJ)
+$(BUILD)/libquake3-engine.a: $(METAL_ENGINE_OBJ)
 	rm -f $@
-	$(AR) rcs $@ $(METAL_APP_OBJ)
+	$(AR) rcs $@ $(METAL_ENGINE_OBJ)
 
 $(BUILD)/metal/q3metal_swift.o: $(SWIFT_SRC) $(MACDIR)/mtl_bridge.h
 	@mkdir -p $(@D)
@@ -231,4 +234,4 @@ $(eval $(call RULES,metal,$(MACDIR),$(METAL_CFLAGS),$(METAL_LAYER)))
 
 -include $(METAL_OBJ:.o=.d) $(BUILD)/metal-app/unix_main.d
 
-.PHONY: all client ded applib metal metal-applib
+.PHONY: all client ded applib metal metal-enginelib
