@@ -70,10 +70,13 @@ On macOS the engine can also run without SDL and without OpenGL:
 ```sh
 cd code/unix
 make -f Makefile.sdl -j8 metal           # build/darwin-arm64-release/quake3-metal
+                                         # and default.metallib beside it
 ```
 
-Requirements: Xcode or the command line tools (clang and swiftc). The shaders
-are compiled at startup, so the separate Metal toolchain is not needed.
+Requirements: Xcode (clang, swiftc and the Metal toolchain; if `xcrun metal`
+is missing, install it with `xcodebuild -downloadComponent MetalToolchain`).
+Keep `default.metallib` next to `quake3-metal`; the renderer loads its
+shaders from there.
 
 `code/macos` holds the platform layer:
 
@@ -81,7 +84,7 @@ are compiled at startup, so the separate Metal toolchain is not needed.
 |---|---|
 | `Platform.swift` | AppKit window with a `CAMetalLayer`, event pump, keyboard, relative mouse |
 | `MetalRenderer.swift` | Metal backend: pipeline/depth-stencil state caches, per-frame vertex arenas, textures, offscreen frame, present pass with the gamma ramp, read-back for screenshots |
-| `Shaders.swift` | MSL for the fixed-function pipeline the renderer expects (vertex colour, two texture units with GL texture environments, alpha test, user clip plane) |
+| `Shaders.metal` | shaders for the fixed-function pipeline the renderer expects (vertex colour, two texture units with GL texture environments, alpha test, user clip plane) |
 | `Audio.swift` | sound output through an `AVAudioSourceNode` |
 | `mtl_qgl.c` | the renderer's `qgl*` calls (state, matrices, client arrays, immediate mode) implemented on top of the Metal backend |
 | `mac_glimp.c`, `mac_snd.c` | `GLimp_*`, `IN_*` and `SNDDMA_*` for the engine, key mapping |

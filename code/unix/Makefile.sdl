@@ -185,9 +185,11 @@ $(BUILD)/app/unix_main.o: $(UDIR)/unix_main.c
 # The same engine with code/macos as the platform layer: an AppKit window with a
 # CAMetalLayer, a Metal renderer backend and AVAudioEngine sound, written in
 # Swift, plus mtl_qgl.c, which implements the renderer's OpenGL calls on Metal.
-# swiftc links the binary so the Swift runtime and frameworks come along.
+# swiftc links the binary so the Swift runtime and frameworks come along;
+# Shaders.metal becomes default.metallib beside it (needs the Metal toolchain).
 SWIFTC      ?= xcrun swiftc
-SWIFT_SRC   := $(addprefix $(MACDIR)/,Platform.swift MetalRenderer.swift Shaders.swift Audio.swift)
+SWIFT_SRC   := $(addprefix $(MACDIR)/,Platform.swift MetalRenderer.swift Audio.swift)
+METAL       ?= xcrun metal
 ifeq ($(CONFIG),debug)
   SWIFT_OPT := -Onone -g
 else
@@ -204,7 +206,7 @@ METAL_ENGINE_OBJ := $(filter-out $(BUILD)/metal/unix_main.o $(BUILD)/metal/q3met
                       $(addprefix $(BUILD)/metal/,$(addsuffix .o,$(METAL_LAYER))),$(METAL_OBJ)) \
                     $(BUILD)/metal-app/unix_main.o
 
-metal: $(BUILD)/quake3-metal
+metal: $(BUILD)/quake3-metal $(BUILD)/default.metallib
 metal-enginelib: $(BUILD)/libquake3-engine.a
 
 $(BUILD)/quake3-metal: $(METAL_OBJ)
@@ -213,6 +215,11 @@ $(BUILD)/quake3-metal: $(METAL_OBJ)
 $(BUILD)/libquake3-engine.a: $(METAL_ENGINE_OBJ)
 	rm -f $@
 	$(AR) rcs $@ $(METAL_ENGINE_OBJ)
+
+# the shaders; the renderer loads default.metallib from next to the binary
+$(BUILD)/default.metallib: $(MACDIR)/Shaders.metal
+	@mkdir -p $(@D)
+	$(METAL) -o $@ $<
 
 $(BUILD)/metal/q3metal_swift.o: $(SWIFT_SRC) $(MACDIR)/mtl_bridge.h
 	@mkdir -p $(@D)

@@ -45,7 +45,7 @@
 			path = quake3UITests;
 			sourceTree = "<group>";
 		};
-		0A51E0F330B6000100C18848 /* macos */ = {
+		0A51E0F330B6000100C18848 /* Metal port (code/macos) */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			name = "Metal port (code/macos)";
 			path = ../../code/macos;
@@ -76,7 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				08EAC36230B5E04400C18848 /* quake3 */,
-				0A51E0F330B6000100C18848 /* macos */,
+				0A51E0F330B6000100C18848 /* Metal port (code/macos) */,
 				08EAC37130B5E04500C18848 /* quake3Tests */,
 				08EAC37B30B5E04500C18848 /* quake3UITests */,
 				08EAC36130B5E04400C18848 /* Products */,
@@ -109,7 +109,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				08EAC36230B5E04400C18848 /* quake3 */,
-				0A51E0F330B6000100C18848 /* macos */,
+				0A51E0F330B6000100C18848 /* Metal port (code/macos) */,
 			);
 			name = quake3;
 			productName = quake3;
@@ -224,21 +224,12 @@
 		0A51E0F130B6000100C18848 /* Build Engine */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
 			name = "Build Engine";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$SRCROOT/scripts/build_engine.sh\"\n";
+			shellScript = (
+				"\"$SRCROOT/scripts/build_engine.sh\"",
+				"",
+			);
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -424,10 +415,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"$(DERIVED_FILE_DIR)/engine/libquake3-engine.a",
-				);
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					"-fsigned-char",
@@ -435,6 +422,10 @@
 					"-DC_ONLY",
 					"-DQ3_NO_JIT",
 					"-DUSE_METAL",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(DERIVED_FILE_DIR)/engine/libquake3-engine.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -479,10 +470,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"$(DERIVED_FILE_DIR)/engine/libquake3-engine.a",
-				);
 				OTHER_CFLAGS = (
 					"$(inherited)",
 					"-fsigned-char",
@@ -490,6 +477,10 @@
 					"-DC_ONLY",
 					"-DQ3_NO_JIT",
 					"-DUSE_METAL",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(DERIVED_FILE_DIR)/engine/libquake3-engine.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3;
 				PRODUCT_NAME = "$(TARGET_NAME)";

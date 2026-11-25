@@ -164,7 +164,7 @@ nonisolated final class MetalRenderer {
         layer.maximumDrawableCount = 3
         layer.allowsNextDrawableTimeout = true
 
-        library = try device.makeLibrary(source: q3ShaderSource, options: nil)
+        library = try Self.loadShaderLibrary(device: device)
 
         let colorDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.colorFormat, width: width,
                                                                  height: height, mipmapped: false)
@@ -201,6 +201,22 @@ nonisolated final class MetalRenderer {
     enum RendererError: Error {
         case noDevice
         case allocation
+        case noShaderLibrary
+    }
+
+    /// Shaders.metal, compiled at build time: the app bundle's default.metallib,
+    /// or for the stand-alone binary, default.metallib next to the executable.
+    private static func loadShaderLibrary(device: MTLDevice) throws -> MTLLibrary {
+        if let library = try? device.makeDefaultLibrary(bundle: .main) {
+            return library
+        }
+        if let exe = Bundle.main.executableURL?.resolvingSymlinksInPath() {
+            let url = exe.deletingLastPathComponent().appendingPathComponent("default.metallib")
+            if let library = try? device.makeLibrary(URL: url) {
+                return library
+            }
+        }
+        throw RendererError.noShaderLibrary
     }
 
     func shutdown() {

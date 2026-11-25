@@ -1,13 +1,18 @@
 //
-// Metal port: shader source, compiled at startup with MTLDevice.makeLibrary(source:).
+// Metal port: shaders.
 //
 // q3_vs / q3_fs reproduce the fixed-function pipeline the renderer was written
 // for: vertex colour, two texture units combined with OpenGL texture
-// environments, alpha test, and one user clip plane (portals and mirrors).
-// The uniform structs match mtl_vs_uniforms_t / mtl_fs_uniforms_t in mtl_bridge.h.
+// environments, alpha test (a function constant, so pipelines without it keep
+// early depth testing), and one user clip plane (portals and mirrors).
+// VSUniforms / FSUniforms match mtl_vs_uniforms_t / mtl_fs_uniforms_t in
+// mtl_bridge.h. clear_* fill a scissor rectangle; present_* scale the frame
+// into the window and apply the gamma ramp.
+//
+// Xcode compiles this into the app's default.metallib; `make metal` builds
+// default.metallib next to quake3-metal.
 //
 
-nonisolated let q3ShaderSource = """
 #include <metal_stdlib>
 using namespace metal;
 
@@ -162,4 +167,3 @@ fragment float4 present_fs(PresentOut in [[stage_in]],
                   gamma.sample(rampSampler, float2(uv.b, 0.5)).b,
                   1.0);
 }
-"""
