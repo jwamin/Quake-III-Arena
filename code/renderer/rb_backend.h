@@ -14,6 +14,14 @@ Shared front-end files (tr_cmds.c, tr_main.c, tr_shader.c, ...) must not
 call qgl* directly.  Anything that needs the graphics API goes through a
 function declared here, so a backend can be swapped at build time.
 
+Ownership decisions so far:
+  * tr_image.c stays GL-only (decision: "option B").  The Metal backend
+    provides its own texture upload (resample, picmip, mip chain) rather
+    than splitting Upload32; the shared image loaders (TGA/JPG/PCX) will
+    be factored out when the Metal backend is written.
+  * tr_init.c, tr_surface.c, tr_sky.c, tr_flares.c still contain GL and
+    are not yet split.
+
 This header is a work in progress: it grows as GL calls are moved out of
 shared files.  See the Metal/ray-tracing plan for the remaining steps.
 ===========================================================================
