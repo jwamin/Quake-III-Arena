@@ -46,6 +46,18 @@ void MTLR_TexSubImage( int texnum, int level, int x, int y, int width, int heigh
 void MTLR_TexParams( int texnum, int minFilter, int magFilter, int mipFilter, int wrapS, int wrapT );
 void MTLR_DeleteTexture( int texnum );
 
+// ---- ray tracing (MetalRenderer.swift) ----
+
+// Builds the acceleration structure for the static world from triangles
+// (xyz per vertex, three indexes per triangle). Replaces the previous one;
+// numIndexes 0 just drops it. Returns false when ray tracing is unavailable.
+bool MTLR_SetWorldGeometry( const float *xyz, int numVerts, const uint32_t *indexes, int numIndexes );
+// True while there is a world acceleration structure to trace against.
+bool MTLR_HasWorld( void );
+// Adds the view's dynamic lights, with ray traced shadows, to the opaque
+// image drawn so far.
+void MTLR_TraceDlights( const mtl_rt_view_t *view );
+
 // ---- sound (Audio.swift) ----
 
 // Plays the engine's ring buffer of interleaved 16-bit samples. *position is

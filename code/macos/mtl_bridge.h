@@ -104,6 +104,28 @@ typedef struct {
 	int32_t  scissor[4];
 } mtl_state_t;
 
+// ---- ray tracing (mtl_rt.c -> MetalRenderer.swift) ----
+
+#define MTL_RT_MAX_LIGHTS	32		// MAX_DLIGHTS
+
+// One dynamic light (matches RTLight in Shaders.metal).
+typedef struct {
+	float   origin[3];
+	float   radius;
+	float   color[3];       // 0..1, as in dlight_t
+	float   pad;
+} mtl_rt_light_t;
+
+// Everything the dynamic-light pass needs for one view.
+typedef struct {
+	float   projection[16]; // OpenGL clip from eye, column-major
+	float   modelview[16];  // eye from world, column-major
+	float   viewOrigin[3];
+	int32_t viewport[4];    // OpenGL window coordinates (origin bottom left)
+	int32_t numLights;
+	mtl_rt_light_t lights[MTL_RT_MAX_LIGHTS];
+} mtl_rt_view_t;
+
 // ---- implemented in C (mac_glimp.c), called from Swift ----
 
 // A key went down or up. macKey is the virtual key code (kVK_*), ch the

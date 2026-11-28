@@ -332,7 +332,8 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	d = VectorLength( ent->directedLight );
 	VectorScale( ent->lightDir, d, lightDir );
 
-	for ( i = 0 ; i < refdef->num_dlights ; i++ ) {
+	// a ray traced backend lights the entity's pixels itself
+	for ( i = 0 ; i < refdef->num_dlights && !RB_Backend_RTDlights() ; i++ ) {
 		dl = &refdef->dlights[i];
 		VectorSubtract( dl->origin, lightOrigin, dir );
 		d = VectorNormalize( dir );

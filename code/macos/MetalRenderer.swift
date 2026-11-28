@@ -14,6 +14,7 @@ import AppKit
 import Metal
 import MetalFX
 import QuartzCore
+import simd
 
 // MARK: - Per-frame buffer arena
 
@@ -112,6 +113,11 @@ nonisolated final class MetalRenderer {
     private let depthTarget: MTLTexture
     private var spatialScaler: MTLFXSpatialScaler?
     private var upscaledTarget: MTLTexture?
+
+    // ray tracing (r_rtShadows)
+    private var worldAccel: MTLAccelerationStructure?
+    private var rtDlightPipeline: MTLComputePipelineState?
+    private var rtDlightPipelineFailed = false
     private static let colorFormat = MTLPixelFormat.rgba8Unorm
     private static let depthFormat = MTLPixelFormat.depth32Float_stencil8
 
@@ -198,14 +204,14 @@ nonisolated final class MetalRenderer {
 
         let colorDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.colorFormat, width: width,
                                                                  height: height, mipmapped: false)
-        colorDesc.usage = [.renderTarget, .shaderRead]
+        colorDesc.usage = [.renderTarget, .shaderRead, .shaderWrite]   // written by the RT light pass
         if let spatialScaler {
             colorDesc.usage.formUnion(spatialScaler.colorTextureUsage)
         }
         colorDesc.storageMode = .private
         let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.depthFormat, width: width,
                                                                  height: height, mipmapped: false)
-        depthDesc.usage = .renderTarget
+        depthDesc.usage = [.renderTarget, .shaderRead]                // read by the RT light pass
         depthDesc.storageMode = .private
         guard let color = device.makeTexture(descriptor: colorDesc),
               let depth = device.makeTexture(descriptor: depthDesc) else {
@@ -437,6 +443,119 @@ nonisolated final class MetalRenderer {
 
     func finish() {
         // Nothing needs the GPU to be idle here; work is ordered by the queue.
+    }
+
+    // MARK: Ray tracing
+
+    /// Builds the static world's acceleration structure; false when the GPU cannot ray trace.
+    func setWorldGeometry(xyz: UnsafePointer<Float>?, numVerts: Int, indexes: UnsafePointer<UInt32>?,
+                          numIndexes: Int) -> Bool {
+        worldAccel = nil
+        guard device.supportsRaytracing else { return false }
+        guard let xyz, let indexes, numVerts > 0, numIndexes >= 3 else { return true }
+
+        guard let vertexBuffer = device.makeBuffer(bytes: xyz, length: numVerts * 3 * MemoryLayout<Float>.size,
+                                                   options: .storageModeShared),
+              let indexBuffer = device.makeBuffer(bytes: indexes, length: numIndexes * MemoryLayout<UInt32>.size,
+                                                  options: .storageModeShared) else {
+            return false
+        }
+        let geometry = MTLAccelerationStructureTriangleGeometryDescriptor()
+        geometry.vertexBuffer = vertexBuffer
+        geometry.vertexStride = 3 * MemoryLayout<Float>.size
+        geometry.vertexFormat = .float3
+        geometry.indexBuffer = indexBuffer
+        geometry.indexType = .uint32
+        geometry.triangleCount = numIndexes / 3
+        geometry.opaque = true
+        let desc = MTLPrimitiveAccelerationStructureDescriptor()
+        desc.geometryDescriptors = [geometry]
+
+        let sizes = device.accelerationStructureSizes(descriptor: desc)
+        guard let accel = device.makeAccelerationStructure(size: sizes.accelerationStructureSize),
+              let scratch = device.makeBuffer(length: sizes.buildScratchBufferSize, options: .storageModePrivate),
+              let buffer = queue.makeCommandBuffer(),
+              let enc = buffer.makeAccelerationStructureCommandEncoder() else {
+            return false
+        }
+        accel.label = "Q3 world"
+        enc.build(accelerationStructure: accel, descriptor: desc, scratchBuffer: scratch, scratchBufferOffset: 0)
+        enc.endEncoding()
+        // Map load: waiting is fine, and the frame that uses it is committed after this.
+        buffer.commit()
+        buffer.waitUntilCompleted()
+        guard buffer.status == .completed else {
+            MacPrint("RT: building the world acceleration structure failed\n")
+            return false
+        }
+        worldAccel = accel
+        MacPrint("RT: world acceleration structure, \(numIndexes / 3) triangles, "
+                 + "\(sizes.accelerationStructureSize >> 10) KB\n")
+        return true
+    }
+
+    var hasWorld: Bool { worldAccel != nil }
+
+    private func dlightPipeline() -> MTLComputePipelineState? {
+        if let rtDlightPipeline { return rtDlightPipeline }
+        if rtDlightPipelineFailed { return nil }
+        do {
+            guard let fn = library.makeFunction(name: "rt_dlights") else { throw RendererError.noShaderLibrary }
+            rtDlightPipeline = try device.makeComputePipelineState(function: fn)
+        } catch {
+            MacPrint("RT: dlight pipeline failed: \(error)\n")
+            rtDlightPipelineFailed = true
+        }
+        return rtDlightPipeline
+    }
+
+    /// Matches RTUniforms in Shaders.metal.
+    private struct RTUniforms {
+        var invViewProj: simd_float4x4
+        var viewOrigin: SIMD4<Float>
+        var viewport: SIMD4<Int32>
+        var numLights: Int32
+        var pad: (Int32, Int32, Int32) = (0, 0, 0)
+    }
+
+    private static func matrix(_ m: (Float, Float, Float, Float, Float, Float, Float, Float,
+                                     Float, Float, Float, Float, Float, Float, Float, Float)) -> simd_float4x4 {
+        simd_float4x4(columns: (SIMD4(m.0, m.1, m.2, m.3), SIMD4(m.4, m.5, m.6, m.7),
+                                SIMD4(m.8, m.9, m.10, m.11), SIMD4(m.12, m.13, m.14, m.15)))
+    }
+
+    /// Adds the view's dynamic lights, with ray traced shadows, to the opaque image so far.
+    func traceDlights(_ viewPtr: UnsafePointer<mtl_rt_view_t>) {
+        var view = viewPtr.pointee
+        let numLights = Int(min(max(view.numLights, 0), MTL_RT_MAX_LIGHTS))
+        guard numLights > 0, let world = worldAccel, let pipeline = dlightPipeline() else { return }
+
+        // OpenGL window rectangle (origin bottom left) -> texture rectangle (origin top left)
+        let vx = Int(view.viewport.0), vw = Int(view.viewport.2), vh = Int(view.viewport.3)
+        let vy = height - Int(view.viewport.1) - vh
+        guard vw > 0, vh > 0, vx >= 0, vy >= 0, vx + vw <= width, vy + vh <= height else { return }
+
+        let viewProj = Self.matrix(view.projection) * Self.matrix(view.modelview)
+        var uniforms = RTUniforms(invViewProj: viewProj.inverse,
+                                  viewOrigin: SIMD4(view.viewOrigin.0, view.viewOrigin.1, view.viewOrigin.2, 1),
+                                  viewport: SIMD4(Int32(vx), Int32(vy), Int32(vw), Int32(vh)),
+                                  numLights: Int32(numLights))
+
+        guard let buffer = ensureCommandBuffer() else { return }
+        endEncoding()   // drawing resumes in a new render pass that loads this one's result
+        guard let enc = buffer.makeComputeCommandEncoder() else { return }
+        enc.label = "RT dlights"
+        enc.setComputePipelineState(pipeline)
+        enc.setTexture(colorTarget, index: 0)
+        enc.setTexture(depthTarget, index: 1)
+        enc.setBytes(&uniforms, length: MemoryLayout<RTUniforms>.stride, index: 0)
+        withUnsafeBytes(of: &view.lights) { lights in
+            enc.setBytes(lights.baseAddress!, length: numLights * MemoryLayout<mtl_rt_light_t>.stride, index: 1)
+        }
+        enc.setAccelerationStructure(world, bufferIndex: 2)
+        enc.dispatchThreads(MTLSize(width: vw, height: vh, depth: 1),
+                            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        enc.endEncoding()
     }
 
     // MARK: Buffers
@@ -957,6 +1076,23 @@ nonisolated func MacPrint(_ message: String) {
 }
 
 // MARK: - C entry points (declared in mtl_swift.h)
+
+@_cdecl("MTLR_SetWorldGeometry")
+public func MTLR_SetWorldGeometry(_ xyz: UnsafePointer<Float>?, _ numVerts: Int32, _ indexes: UnsafePointer<UInt32>?,
+                                  _ numIndexes: Int32) -> Bool {
+    MetalRenderer.shared?.setWorldGeometry(xyz: xyz, numVerts: Int(numVerts), indexes: indexes,
+                                           numIndexes: Int(numIndexes)) ?? false
+}
+
+@_cdecl("MTLR_HasWorld")
+public func MTLR_HasWorld() -> Bool {
+    MetalRenderer.shared?.hasWorld ?? false
+}
+
+@_cdecl("MTLR_TraceDlights")
+public func MTLR_TraceDlights(_ view: UnsafePointer<mtl_rt_view_t>) {
+    MetalRenderer.shared?.traceDlights(view)
+}
 
 @_cdecl("MTLR_AllocVertices")
 public func MTLR_AllocVertices(_ count: Int32) -> UnsafeMutablePointer<mtl_vertex_t>? {

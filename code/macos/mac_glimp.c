@@ -25,6 +25,8 @@ cvar_t *in_nograb;
 // Metal-only display cvars (see docs/metal-rt.md)
 cvar_t *r_mtlUpscale;       // 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised
 cvar_t *r_mtlRenderScale;   // internal resolution as a fraction of r_mode
+cvar_t *r_rtShadows;        // ray traced dynamic lights and shadows (mtl_rt.c); not latched
+cvar_t *r_rtDebugLight;     // "x y z radius": a white test light for the RT pass
 
 static qboolean mouse_avail;
 static qboolean mouse_active;
@@ -248,6 +250,8 @@ void GLimp_Init( void ) {
 	// drawing and screenshots all work in internal pixels.
 	r_mtlUpscale = ri.Cvar_Get( "r_mtlUpscale", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_mtlRenderScale = ri.Cvar_Get( "r_mtlRenderScale", "1.0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_rtShadows = ri.Cvar_Get( "r_rtShadows", "0", CVAR_ARCHIVE );
+	r_rtDebugLight = ri.Cvar_Get( "r_rtDebugLight", "", CVAR_CHEAT );
 	outputWidth = glConfig.vidWidth;
 	outputHeight = glConfig.vidHeight;
 	upscale = r_mtlUpscale->integer;

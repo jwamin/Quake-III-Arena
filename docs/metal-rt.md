@@ -92,24 +92,43 @@ and turns itself off with a console message when it is missing.
    vectors (camera motion from depth plus the previous view-projection;
    entities through a reactive mask at first, per-entity motion later).
 
-## Cvars (all `CVAR_ARCHIVE | CVAR_LATCH`, Metal build only)
+## Cvars (Metal build only; archived, latched unless noted)
 
 | Cvar | Default | Meaning |
 |---|---|---|
 | `r_mtlUpscale` | 0 | 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised |
 | `r_mtlRenderScale` | 1.0 | internal resolution as a fraction of `r_mode` (0.34–1.0) |
-| `r_rtShadows` | 0 | 0 off, 1 dynamic-light shadows, 2 also sun shadows |
+| `r_rtShadows` | 0 | 0 off, 1 ray traced dynamic lights with shadows, 2 also sun shadows. **Not latched**: toggles live (the world acceleration structure is always built when the GPU supports ray tracing) |
+| `r_rtDebugLight` | "" | cheat, not archived: `"x y z radius"` adds a white light to the RT pass, for testing |
 | `r_rtReflections` | 0 | ray-traced reflections on environment-mapped surfaces |
 | `r_rtGI` | 0 | one-bounce indirect light from dynamic lights |
 | `r_rtSamples` | 1 | rays per pixel per effect |
 
 Example: `quake3-metal +set r_mtlUpscale 1 +set r_mtlRenderScale 0.5`.
 
+## Phase 2 notes
+
+- `RB_Backend_WorldLoaded` (end of `RE_LoadWorldMap`) collects model 0's
+  `SS_OPAQUE`, non-sky, non-nodraw, non-alpha-tested faces, patches (full
+  detail) and triangle soups; q3dm1 gives 17.6k triangles, 1.6 MB.
+- `RB_Backend_OpaqueDone` runs in `RB_RenderDrawSurfList` at the first
+  non-opaque shader (or after the last batch), for world views only.
+- The `rt_dlights` kernel (`Shaders.metal`) reproduces Q3's dlight shape
+  (radial falloff of the dlight image horizontally, slab vertically) and blend
+  (`dst * light + dst`), adds half-Lambert shading and a shadow ray. The view
+  weapon's squeezed depth range (`RF_DEPTHHACK`, depth < 0.3) is undone
+  before position reconstruction.
+- With it on, Q3's own dlight passes (`ProjectDlightTexture`) and the dlight
+  term in entity lighting are skipped. Entities receive RT light (they are in
+  the depth buffer) but do not cast shadows yet (phase 4).
+- `timedemo four`, M4, 1024x768: 284 fps off, 256 fps on. Frames without
+  dlights are bit-identical with it on and off.
+
 ## Phases
 
 1. Cvars, internal resolution and MetalFX spatial upscaling. **(done)**
 2. World acceleration structure and RT dynamic-light shadows (depth-based
-   position reconstruction).
+   position reconstruction). **(done)**
 3. Camera jitter, motion vectors, MetalFX temporal upscaling.
 4. G-buffer attachment (normal, albedo, roughness), RT reflections, entity
    instances.

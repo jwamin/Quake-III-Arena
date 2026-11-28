@@ -167,3 +167,127 @@ fragment float4 present_fs(PresentOut in [[stage_in]],
                   gamma.sample(rampSampler, float2(uv.b, 0.5)).b,
                   1.0);
 }
+
+// ---------------------------------------------------------------------------
+// Ray traced dynamic lights (r_rtShadows; mtl_rt.c, docs/metal-rt.md)
+//
+// Runs after the opaque surfaces of a world view. For each pixel of the view:
+// world position from the depth buffer, normal from the neighbouring depths,
+// then for each dynamic light Q3's falloff, N.L and a shadow ray against the
+// static world. The light is applied the way Q3's dlight pass blends it
+// (dst * light + dst), so the surface colour and lightmap tint it.
+// ---------------------------------------------------------------------------
+
+#include <metal_raytracing>
+using namespace metal::raytracing;
+
+struct RTLight {
+    float4 originRadius;     // matches mtl_rt_light_t
+    float4 color;
+};
+
+struct RTUniforms {
+    float4x4 invViewProj;    // world from OpenGL clip
+    float4   viewOrigin;
+    int4     viewport;       // x, y, width, height in texture pixels (origin top left)
+    int      numLights;
+};
+
+// Q3 squeezes the view weapon into depth [0, 0.3] (RF_DEPTHHACK). No world
+// surface is that close to the eye, so such depths are the weapon's: undo it.
+static float rtUnhackDepth(float d)
+{
+    return d < 0.3 ? d / 0.3 : d;
+}
+
+static float3 rtWorldPos(int2 p, float d, constant RTUniforms &u)
+{
+    float2 ndc = (float2(p - u.viewport.xy) + 0.5) / float2(u.viewport.zw) * 2.0 - 1.0;
+    ndc.y = -ndc.y;
+    float4 w = u.invViewProj * float4(ndc, rtUnhackDepth(d) * 2.0 - 1.0, 1.0);
+    return w.xyz / w.w;
+}
+
+kernel void rt_dlights(texture2d<float, access::read_write> color [[texture(0)]],
+                       depth2d<float, access::read> depth [[texture(1)]],
+                       constant RTUniforms &u [[buffer(0)]],
+                       constant RTLight *lights [[buffer(1)]],
+                       primitive_acceleration_structure world [[buffer(2)]],
+                       uint2 tid [[thread_position_in_grid]])
+{
+    if (int(tid.x) >= u.viewport.z || int(tid.y) >= u.viewport.w) {
+        return;
+    }
+    int2 p = u.viewport.xy + int2(tid);
+    float d = depth.read(uint2(p));
+    if (d >= 1.0) {
+        return;                          // nothing drawn (sky is drawn at the far plane too)
+    }
+    float3 P = rtWorldPos(p, d, u);
+
+    // normal from the neighbour on each axis whose depth continues the surface best
+    int2 lo = u.viewport.xy, hi = u.viewport.xy + u.viewport.zw - 1;
+    int2 px0 = clamp(p - int2(1, 0), lo, hi), px1 = clamp(p + int2(1, 0), lo, hi);
+    int2 py0 = clamp(p - int2(0, 1), lo, hi), py1 = clamp(p + int2(0, 1), lo, hi);
+    float3 X0 = rtWorldPos(px0, depth.read(uint2(px0)), u), X1 = rtWorldPos(px1, depth.read(uint2(px1)), u);
+    float3 Y0 = rtWorldPos(py0, depth.read(uint2(py0)), u), Y1 = rtWorldPos(py1, depth.read(uint2(py1)), u);
+    float3 dx = length_squared(X1 - P) < length_squared(P - X0) ? X1 - P : P - X0;
+    float3 dy = length_squared(Y1 - P) < length_squared(P - Y0) ? Y1 - P : P - Y0;
+    float3 N = cross(dx, dy);
+    float nlen = length(N);
+    if (nlen < 1e-6) {
+        return;
+    }
+    N /= nlen;
+    float3 toEye = u.viewOrigin.xyz - P;
+    if (dot(N, toEye) < 0.0) {
+        N = -N;
+    }
+
+    intersector<> shadow;
+    shadow.accept_any_intersection(true);
+    shadow.assume_geometry_type(geometry_type::triangle);
+    shadow.force_opacity(forced_opacity::opaque);
+
+    float3 sum = 0.0;
+    for (int i = 0; i < u.numLights; i++) {
+        float3 L = lights[i].originRadius.xyz - P;
+        float dist = length(L);
+        float radius = lights[i].originRadius.w;
+        // Q3's dlight shape (tr_shade.c ProjectDlightTexture): horizontally,
+        // the dlight image (tr_image.c), 16 texels across +-radius/2 with
+        // brightness 4000 / texelDist^2 clamped to 255 and cut to 0 below 75,
+        // which is full intensity out to 0.25 radius and gone at 0.456 radius
+        // (faded out here instead of ending in a ring); vertically, full
+        // strength to radius/2, then linear to 0 at radius.
+        float rxy = length(L.xy) / radius;
+        float dz = abs(L.z);
+        if (rxy >= 0.456 || dz >= radius || dist < 1e-3) {
+            continue;
+        }
+        float intensity = min(1.0, 0.0613 / max(rxy * rxy, 1e-6)) * saturate((0.456 - rxy) / 0.08)
+                        * min(1.0, 2.0 * (radius - dz) / radius);
+        float3 Ldir = L / dist;
+        float ndl = dot(N, Ldir);
+        if (ndl <= 0.0) {
+            continue;
+        }
+        // Q3 ignores orientation; half Lambert keeps its brightness on grazing
+        // surfaces while still shaping them
+        ndl = 0.5 + 0.5 * ndl;
+        ray r0;
+        r0.origin = P + N * 0.5;
+        r0.direction = Ldir;
+        r0.min_distance = 0.0;
+        r0.max_distance = max(dist - 1.0, 0.0);
+        if (shadow.intersect(r0, world).type != intersection_type::none) {
+            continue;
+        }
+        sum += lights[i].color.rgb * (intensity * ndl);
+    }
+    if (all(sum == 0.0)) {
+        return;
+    }
+    float4 c = color.read(uint2(p));
+    color.write(float4(saturate(c.rgb * (1.0 + sum)), c.a), uint2(p));
+}

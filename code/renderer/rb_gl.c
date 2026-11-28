@@ -102,3 +102,22 @@ void RB_Backend_DebugPolygon( int color, int numPoints, float *points ) {
 	qglEnd();
 	qglDepthRange( 0, 1 );
 }
+
+
+/*
+** Ray tracing hooks: nothing to do with OpenGL.  The Metal build provides
+** them in code/macos/mtl_rt.c.
+*/
+#ifndef USE_METAL
+
+void RB_Backend_WorldLoaded( void ) {
+}
+
+void RB_Backend_OpaqueDone( void ) {
+}
+
+qboolean RB_Backend_RTDlights( void ) {
+	return qfalse;
+}
+
+#endif

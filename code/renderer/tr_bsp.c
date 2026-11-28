@@ -1857,6 +1857,8 @@ void RE_LoadWorldMap( const char *name ) {
 	// only set tr.world now that we know the entire level has loaded properly
 	tr.world = &s_worldData;
 
+	RB_Backend_WorldLoaded();
+
     ri.FS_FreeFile( buffer );
 }
 

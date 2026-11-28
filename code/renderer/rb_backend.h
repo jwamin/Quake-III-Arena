@@ -81,4 +81,29 @@ void		RB_Backend_BeginDebugDraw( void );
 */
 void		RB_Backend_DebugPolygon( int color, int numPoints, float *points );
 
+/*
+** Ray tracing hooks (docs/metal-rt.md).  The OpenGL backend implements them
+** as no-ops; the Metal build implements them in code/macos/mtl_rt.c.
+*/
+
+/*
+** tr.world has just been loaded (RE_LoadWorldMap): build whatever the
+** backend traces rays against.
+*/
+void		RB_Backend_WorldLoaded( void );
+
+/*
+** The opaque surfaces of the current view have been drawn (the depth buffer
+** is complete for them); translucent surfaces follow.  Called once per view
+** from RB_RenderDrawSurfList, with the last batch already flushed.
+*/
+void		RB_Backend_OpaqueDone( void );
+
+/*
+** True when the backend lights dynamic lights itself (ray traced), so the
+** renderer must not add them as well (projected dlight passes, dlights in
+** entity lighting).
+*/
+qboolean	RB_Backend_RTDlights( void );
+
 #endif	// RB_BACKEND_H
