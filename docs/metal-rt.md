@@ -96,16 +96,32 @@ and turns itself off with a console message when it is missing.
 
 | Cvar | Default | Meaning |
 |---|---|---|
+| `r_renderer` | metal | `metal` or `opengl` (Apple's OpenGL framework through the same `qgl*` pointers; no MetalFX, no RT, software overbright) |
 | `r_mtlUpscale` | 0 | 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised |
 | `r_mtlRenderScale` | 1.0 | internal resolution as a fraction of `r_mode` (0.34–1.0) |
 | `r_rtShadows` | 0 | 0 off, 1 ray traced dynamic lights with shadows, 2 also sun shadows. **Not latched**: toggles live (the world acceleration structure is always built when the GPU supports ray tracing) |
-| `r_clay` | 0 | shared renderer, not latched, also in System > Graphics: lighting only. Opaque base textures are drawn mid grey (`tr.identityLightImage`), texture-times-lightmap filter stages are skipped; lightmaps, glows, alpha-tested surfaces, sky and 2D are unchanged |
+| `r_clay` | 0 | shared renderer, not latched, in System Setup > RAY TRACING: lighting only. Opaque base textures are drawn mid grey (`tr.identityLightImage`), texture-times-lightmap filter stages are skipped; lightmaps, glows, alpha-tested surfaces, sky and 2D are unchanged |
 | `r_rtDebugLight` | "" | cheat, not archived: `"x y z radius"` adds a white light to the RT pass, for testing |
 | `r_rtReflections` | 0 | ray-traced reflections on environment-mapped surfaces |
 | `r_rtGI` | 0 | one-bounce indirect light from dynamic lights |
 | `r_rtSamples` | 1 | rays per pixel per effect |
 
 Example: `quake3-metal +set r_mtlUpscale 1 +set r_mtlRenderScale 0.5`.
+
+## Settings screen
+
+`zz_metal_ui.pk3` (code/q3_ui, built by `build_qvms.sh MODULES=ui` and by
+the app's "Build UI pk3" phase) adds, when the engine registers
+`r_renderer` (the Metal build only):
+
+- **Graphics** page: "Renderer: Metal / OpenGL" in place of "GL Driver".
+- **METAL** tab (`ui_metal.c`): Renderer, Upscaling, Render Scale (latched;
+  Accept runs `vid_restart`), and the running device.
+- **RAY TRACING** tab: Ray Traced Lights (`r_rtShadows`) and Clay Mode
+  (`r_clay`), applied immediately; greyed out with a note unless the Metal
+  renderer is running. Later phases add their options here.
+
+The SDL/GL build shows the stock pages.
 
 ## Phase 2 notes
 

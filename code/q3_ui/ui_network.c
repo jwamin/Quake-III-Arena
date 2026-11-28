@@ -64,6 +64,8 @@ typedef struct {
 	menutext_s		display;
 	menutext_s		sound;
 	menutext_s		network;
+	menutext_s		metalTab;		// METAL and RAY TRACING (ui_metal.c)
+	menutext_s		rtTab;
 
 	menulist_s		rate;
 
@@ -234,6 +236,7 @@ static void UI_NetworkOptionsMenu_Init( void ) {
 	Menu_AddItem( &networkOptionsInfo.menu, ( void * ) &networkOptionsInfo.display );
 	Menu_AddItem( &networkOptionsInfo.menu, ( void * ) &networkOptionsInfo.sound );
 	Menu_AddItem( &networkOptionsInfo.menu, ( void * ) &networkOptionsInfo.network );
+	UI_MetalTabs_Add( &networkOptionsInfo.menu, &networkOptionsInfo.metalTab, &networkOptionsInfo.rtTab );
 	Menu_AddItem( &networkOptionsInfo.menu, ( void * ) &networkOptionsInfo.rate );
 	Menu_AddItem( &networkOptionsInfo.menu, ( void * ) &networkOptionsInfo.back );
 

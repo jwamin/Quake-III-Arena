@@ -62,6 +62,8 @@ typedef struct {
 	menutext_s			display;
 	menutext_s			sound;
 	menutext_s			network;
+	menutext_s		metalTab;		// METAL and RAY TRACING (ui_metal.c)
+	menutext_s		rtTab;
 
 	menuslider_s		sfxvolume;
 	menuslider_s		musicvolume;
@@ -278,6 +280,7 @@ static void UI_SoundOptionsMenu_Init( void ) {
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.display );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.sound );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.network );
+	UI_MetalTabs_Add( &soundOptionsInfo.menu, &soundOptionsInfo.metalTab, &soundOptionsInfo.rtTab );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.sfxvolume );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.musicvolume );
 	Menu_AddItem( &soundOptionsInfo.menu, ( void * ) &soundOptionsInfo.quality );

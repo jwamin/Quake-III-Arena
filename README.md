@@ -86,7 +86,8 @@ shaders from there.
 | `MetalRenderer.swift` | Metal backend: pipeline/depth-stencil state caches, per-frame vertex arenas, textures, offscreen frame, present pass with the gamma ramp, read-back for screenshots |
 | `Shaders.metal` | shaders for the fixed-function pipeline the renderer expects (vertex colour, two texture units with GL texture environments, alpha test, user clip plane) |
 | `Audio.swift` | sound output through an `AVAudioSourceNode` |
-| `mtl_qgl.c` | the renderer's `qgl*` calls (state, matrices, client arrays, immediate mode) implemented on top of the Metal backend |
+| `mtl_qgl.c` | the renderer's `qgl*` calls (state, matrices, client arrays, immediate mode) implemented on top of the Metal backend; with `r_renderer opengl`, the same pointers bound to Apple's OpenGL framework |
+| `mtl_rt.c` | ray tracing hooks: world acceleration structure, ray traced dynamic lights (`docs/metal-rt.md`) |
 | `mac_glimp.c`, `mac_snd.c` | `GLimp_*`, `IN_*` and `SNDDMA_*` for the engine, key mapping |
 | `mtl_bridge.h`, `mtl_swift.h`, `mac_gl.h` | the C/Swift interface, and the GL types and tokens the renderer source uses |
 
@@ -97,6 +98,19 @@ with the matching pipeline state. The frame is drawn at the engine resolution
 aspect ratio. Gamma and overbright lighting are applied when the frame is
 presented, so they also work in a window (the GL build turns overbright off
 when windowed).
+
+`quake3-metal` (and the app) can also render with OpenGL: `r_renderer
+opengl` (or System Setup > METAL > Renderer, or the Renderer row on the
+Graphics page), applied with `vid_restart`. The window then holds an OpenGL
+(legacy profile) view instead of the Metal layer; MetalFX and ray tracing are
+off, and there is no hardware gamma, so the renderer brightens in software
+as Q3 does without gamma (darker than Metal).
+
+The menus that come with the build (`zz_metal_ui.pk3`, see below) add two
+System Setup tabs in the Metal build: **METAL** (renderer, MetalFX upscaling,
+render scale; Accept restarts video) and **RAY TRACING** (ray traced lights,
+clay mode; applied immediately, greyed out unless the Metal renderer runs).
+The ray tracing and upscaling work is described in `docs/metal-rt.md`.
 
 Not implemented: SMP renderer, joysticks/game controllers, clipboard paste.
 `r_measureOverdraw` and light flares (`r_flares 1`) read the stencil and
