@@ -51,6 +51,13 @@ private final class GameView: NSView {
     }
 }
 
+/// A borderless window cannot become key by default, which would leave the
+/// fullscreen window without keyboard focus or a mouse grab.
+private final class GameWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 final class Platform: NSObject, NSWindowDelegate {
     static private(set) var shared: Platform?
 
@@ -63,7 +70,8 @@ final class Platform: NSObject, NSWindowDelegate {
     private var grabbed = false
     private var mouseRemainder = CGPoint.zero
     private var scrollRemainder: CGFloat = 0
-    private var modifierKeysDown = Set<UInt16>()
+    private var keysDown = Set<UInt16>()          // key codes the engine saw go down
+    private var appObservers: [NSObjectProtocol] = []
 
     // MARK: Setup
 
@@ -81,14 +89,13 @@ final class Platform: NSObject, NSWindowDelegate {
             contentRect = NSRect(x: 0, y: 0, width: width, height: height)
             style = [.titled, .closable, .miniaturizable]
         }
-        window = NSWindow(contentRect: contentRect, styleMask: style, backing: .buffered, defer: false, screen: screen)
+        window = GameWindow(contentRect: contentRect, styleMask: style, backing: .buffered, defer: false, screen: screen)
         window.title = "Quake III Arena"
         window.isReleasedWhenClosed = false
         window.acceptsMouseMovedEvents = true
         window.backgroundColor = .black
         window.collectionBehavior = [.fullScreenNone]
         if fullscreen {
-            window.level = .mainMenu + 1
             window.setFrame(contentRect, display: false)
         } else {
             window.center()
@@ -106,9 +113,15 @@ final class Platform: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
         view.updateDrawableSize()
-        if fullscreen {
-            NSApp.presentationOptions = [.hideDock, .hideMenuBar]
-        }
+        setFullscreenPresentation(true)
+
+        // Switching apps (Cmd-Tab, clicking another app) must hand the mouse,
+        // keyboard and screen back; coming back takes them again.
+        let center = NotificationCenter.default
+        appObservers.append(center.addObserver(forName: NSApplication.didResignActiveNotification, object: nil,
+                                               queue: nil) { [weak self] _ in self?.appDidResignActive() })
+        appObservers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                               queue: nil) { [weak self] _ in self?.appDidBecomeActive() })
         NSApp.activate()
         Platform.shared = self
     }
@@ -139,15 +152,45 @@ final class Platform: NSObject, NSWindowDelegate {
     }
 
     func shutdown() {
-        applyGrab(false)
-        renderer.shutdown()
-        if fullscreen {
-            NSApp.presentationOptions = []
+        for observer in appObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
+        appObservers.removeAll()
+        applyGrab(false)
+        releaseAllKeys()
+        renderer.shutdown()
+        setFullscreenPresentation(false)
         window.delegate = nil
         window.orderOut(nil)
         window.close()
         Platform.shared = nil
+    }
+
+    // MARK: Focus
+
+    /// In fullscreen, the window covers the menu bar and the Dock is hidden only
+    /// while the game is the active app.
+    private func setFullscreenPresentation(_ on: Bool) {
+        guard fullscreen else { return }
+        window.level = on ? .mainMenu + 1 : .normal
+        NSApp.presentationOptions = on ? [.hideDock, .hideMenuBar] : []
+    }
+
+    private func appDidResignActive() {
+        applyGrab(false)
+        releaseAllKeys()
+        setFullscreenPresentation(false)
+        if fullscreen {
+            // step out of the way of the app being switched to
+            window.orderBack(nil)
+        }
+    }
+
+    private func appDidBecomeActive() {
+        setFullscreenPresentation(true)
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(view)
+        applyGrab(wantGrab && window.isKeyWindow)
     }
 
     // MARK: Mouse grab
@@ -208,6 +251,7 @@ final class Platform: NSObject, NSWindowDelegate {
             guard window.isKeyWindow else { return false }
             let ch = event.characters(byApplyingModifiers: [])?.unicodeScalars.first.map { Int32($0.value) } ?? 0
             MacQ_KeyEvent(Int32(event.keyCode), ch, 1)
+            keysDown.insert(event.keyCode)
             if let text = event.characters {
                 for scalar in text.unicodeScalars where scalar.value < 0xF700 || scalar.value > 0xF8FF {
                     MacQ_CharEvent(Int32(scalar.value))
@@ -216,6 +260,7 @@ final class Platform: NSObject, NSWindowDelegate {
             return true
 
         case .keyUp:
+            keysDown.remove(event.keyCode)
             MacQ_KeyEvent(Int32(event.keyCode), 0, 0)
             return !event.modifierFlags.contains(.command)
 
@@ -230,7 +275,7 @@ final class Platform: NSObject, NSWindowDelegate {
             default: return false
             }
             let down = event.modifierFlags.contains(flag)
-            if down { modifierKeysDown.insert(event.keyCode) } else { modifierKeysDown.remove(event.keyCode) }
+            if down { keysDown.insert(event.keyCode) } else { keysDown.remove(event.keyCode) }
             MacQ_KeyEvent(Int32(event.keyCode), 0, down ? 1 : 0)
             return false
 
@@ -277,12 +322,13 @@ final class Platform: NSObject, NSWindowDelegate {
         view.bounds.contains(view.convert(event.locationInWindow, from: nil))
     }
 
-    /// Focus moved away: modifier releases will not reach us.
+    /// Focus moved away: the key releases will go to another app, so release
+    /// everything the engine still thinks is held (movement keys included).
     private func releaseAllKeys() {
-        for code in modifierKeysDown {
+        for code in keysDown {
             MacQ_KeyEvent(Int32(code), 0, 0)
         }
-        modifierKeysDown.removeAll()
+        keysDown.removeAll()
     }
 }
 
