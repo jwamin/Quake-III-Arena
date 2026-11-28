@@ -250,8 +250,53 @@ static clayStage_t RB_ClayStage( const shaderStage_t *pStage ) {
 	return CLAY_NORMAL;
 }
 
+/*
+** Relighting (r_rtRelight): per opaque batch, decide whether the backend
+** relights its pixels. Relightable shaders are opaque and lit (a lightmap
+** stage, vertex light or entity light), with no blended stages other than
+** texture-times-lightmap filters; they are drawn with white lightmaps and
+** white vertex light, so the framebuffer holds their albedo. Everything else
+** opaque (sky, light-emitting surfaces, glows, fullbright) keeps its baked
+** look and clears the mark.
+*/
+static qboolean	s_relightWhite;	// R_BindAnimatedImage binds white for lightmaps
+
+static int RB_RelightMark( void ) {
+	const shader_t	*sh = tess.shader;
+	qboolean		lit = qfalse;
+	int				stage;
+
+	if ( !RB_Backend_RelightActive() || backEnd.projection2D
+		|| ( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) || sh->sort > SS_OPAQUE ) {
+		return RB_RELIGHT_NONE;
+	}
+	if ( sh->isSky || sh->surfaceLight > 0 || sh->sort != SS_OPAQUE ) {
+		return RB_RELIGHT_CLEAR;
+	}
+	for ( stage = 0; stage < MAX_SHADER_STAGES && tess.xstages[stage]; stage++ ) {
+		const shaderStage_t *st = tess.xstages[stage];
+		unsigned src = st->stateBits & GLS_SRCBLEND_BITS, dst = st->stateBits & GLS_DSTBLEND_BITS;
+		qboolean filter = ( src == GLS_SRCBLEND_DST_COLOR && dst == GLS_DSTBLEND_ZERO )
+			|| ( src == GLS_SRCBLEND_ZERO && dst == GLS_DSTBLEND_SRC_COLOR );
+
+		if ( ( src || dst ) && !filter ) {
+			return RB_RELIGHT_CLEAR;		// glow, additive or blended effect
+		}
+		if ( st->bundle[0].isLightmap || st->bundle[1].isLightmap || st->rgbGen == CGEN_VERTEX
+			|| st->rgbGen == CGEN_EXACT_VERTEX || st->rgbGen == CGEN_LIGHTING_DIFFUSE ) {
+			lit = qtrue;
+		}
+	}
+	return lit ? RB_RELIGHT_SET : RB_RELIGHT_CLEAR;
+}
+
 static void R_BindAnimatedImage( textureBundle_t *bundle ) {
 	int		index;
+
+	if ( s_relightWhite && bundle->isLightmap ) {
+		GL_Bind( tr.whiteImage );
+		return;
+	}
 
 	if ( s_clayWhite && !bundle->isLightmap ) {
 		// mid grey (1.0 in Q3's overbright lighting space): plain white
@@ -714,6 +759,12 @@ static void ComputeColors( shaderStage_t *pStage )
 			break;
 		case CGEN_EXACT_VERTEX:
 			Com_Memcpy( tess.svars.colors, tess.vertexColors, tess.numVertexes * sizeof( tess.vertexColors[0] ) );
+			if ( s_relightWhite ) {
+				// relighting: baked vertex light replaced by white
+				for ( i = 0; i < tess.numVertexes; i++ ) {
+					tess.svars.colors[i][0] = tess.svars.colors[i][1] = tess.svars.colors[i][2] = 255;
+				}
+			}
 			break;
 		case CGEN_CONST:
 			for ( i = 0; i < tess.numVertexes; i++ ) {
@@ -733,6 +784,12 @@ static void ComputeColors( shaderStage_t *pStage )
 					tess.svars.colors[i][1] = tess.vertexColors[i][1] * tr.identityLight;
 					tess.svars.colors[i][2] = tess.vertexColors[i][2] * tr.identityLight;
 					tess.svars.colors[i][3] = tess.vertexColors[i][3];
+				}
+			}
+			if ( s_relightWhite ) {
+				// relighting: baked vertex light replaced by white
+				for ( i = 0; i < tess.numVertexes; i++ ) {
+					tess.svars.colors[i][0] = tess.svars.colors[i][1] = tess.svars.colors[i][2] = 255;
 				}
 			}
 			break;
@@ -1401,7 +1458,19 @@ void RB_EndSurface( void ) {
 	//
 	// call off to shader specific tess end function
 	//
-	tess.currentStageIteratorFunc();
+	{
+		int mark = RB_RelightMark();
+
+		if ( mark != RB_RELIGHT_NONE ) {
+			RB_Backend_SetRelightMark( mark );
+		}
+		s_relightWhite = ( mark == RB_RELIGHT_SET );
+		tess.currentStageIteratorFunc();
+		s_relightWhite = qfalse;
+		if ( mark != RB_RELIGHT_NONE ) {
+			RB_Backend_SetRelightMark( RB_RELIGHT_NONE );
+		}
+	}
 
 	//
 	// draw debugging stuff

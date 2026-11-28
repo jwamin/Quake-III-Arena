@@ -379,6 +379,16 @@ typedef struct shader_s {
 
 	float		portalRange;			// distance to fog out at
 
+	// light compiler (q3map) keywords, kept for ray traced relighting
+	// (code/macos/mtl_rtlights.c); the renderer itself ignores them
+	float		surfaceLight;			// q3map_surfacelight: emitted light, 0 = none
+	int			lightSubdivide;			// q3map_lightsubdivide, 0 = default
+	qboolean	hasBacksplash;			// q3map_backsplash given (else 5% at 24 units)
+	float		backsplashFraction;
+	float		backsplashDistance;
+	char		lightImage[MAX_QPATH];	// q3map_lightimage: source of the light colour
+	char		editorImage[MAX_QPATH];	// qer_editorimage: fallback light colour source
+
 	int			multitextureEnv;		// 0, GL_MODULATE, GL_ADD (FIXME: put in stage)
 
 	cullType_t	cullType;				// CT_FRONT_SIDED, CT_BACK_SIDED, or CT_TWO_SIDED

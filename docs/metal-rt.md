@@ -101,6 +101,12 @@ and turns itself off with a console message when it is missing.
 | `r_mtlRenderScale` | 1.0 | internal resolution as a fraction of `r_mode` (0.34–1.0) |
 | `r_rtShadows` | 0 | 0 off, 1 ray traced dynamic lights with shadows, 2 debug view: opaque surfaces black, only the ray traced light shown, blocked (shadowed) light in blue. Sun shadows will get their own cvar. **Not latched**: toggles live (the world acceleration structure is always built when the GPU supports ray tracing) |
 | `r_clay` | 0 | shared renderer, not latched, in System Setup > RAY TRACING: lighting only. Opaque base textures are drawn mid grey (`tr.identityLightImage`), texture-times-lightmap filter stages are skipped; lightmaps, glows, alpha-tested surfaces, sky and 2D are unchanged |
+| `r_rtRelight` | 0 | not latched: 1 replaces the lightmaps with ray traced direct light from the map's own lights (`docs/metal-rt-relight.md`); 2 the same without shadow rays (diagnosis) |
+| `r_rtLightBudget` | 16 | relight: shadow rays per pixel, half for map lights, half for area/sky patches (2–32) |
+| `r_rtCellLights` | 48 | latched: lights evaluated per pixel per 128-unit cell; the rest go into the cell's ambient cube |
+| `r_rtAreaSubdivide` | 128 | latched: surface light patch size (sky patches 4×, at least 256) |
+| `r_rtRelightScale` | 1.0 | relight brightness calibration (1.0 = q3map's own scale) |
+| `r_rtSun` | 1 | relight: sun from the sky shader's `q3map_sun`, with a shadow ray |
 | `r_rtDebugLight` | "" | cheat, not archived: `"x y z radius"` adds a white light to the RT pass, for testing |
 | `r_rtReflections` | 0 | ray-traced reflections on environment-mapped surfaces |
 | `r_rtGI` | 0 | one-bounce indirect light from dynamic lights |
@@ -117,8 +123,9 @@ the app's "Build UI pk3" phase) adds, when the engine registers
 - **Graphics** page: "Renderer: Metal / OpenGL" in place of "GL Driver".
 - **METAL** tab (`ui_metal.c`): Renderer, Upscaling, Render Scale (latched;
   Accept runs `vid_restart`), and the running device.
-- **RAY TRACING** tab: Ray Traced Lights (`r_rtShadows`: Off / On / Debug View) and Clay Mode
-  (`r_clay`), applied immediately; greyed out with a note unless the Metal
+- **RAY TRACING** tab: Relight World (`r_rtRelight`), Shadow Rays
+  (`r_rtLightBudget`), Ray Traced Lights (`r_rtShadows`: Off / On / Debug View)
+  and Clay Mode (`r_clay`), applied immediately; greyed out with a note unless the Metal
   renderer is running. Later phases add their options here.
 
 The SDL/GL build shows the stock pages.
@@ -141,12 +148,12 @@ The SDL/GL build shows the stock pages.
 - `timedemo four`, M4, 1024x768: 284 fps off, 256 fps on. Frames without
   dlights are bit-identical with it on and off.
 
-## Planned: relight from the map's own lights
+## Relight from the map's own lights (done)
 
-`docs/metal-rt-relight.md` plans `r_rtRelight`: lightmaps replaced by ray
-traced direct light from the map's light entities, surface lights and sun,
-evaluated with q3map's own formulas (`q3map/light.c`) so the result can be
-checked against the baked lightmaps. Not implemented yet.
+`r_rtRelight 1` replaces the lightmaps with ray traced direct light from the
+map's light entities, surface lights and sun, evaluated with q3map's own
+formulas (`q3map/light.c`); within 4–8% of the baked brightness on q3dm1 and
+q3dm7. Design, results and limits: `docs/metal-rt-relight.md`.
 
 ## Phases
 

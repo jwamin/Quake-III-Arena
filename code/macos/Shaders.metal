@@ -308,3 +308,262 @@ kernel void rt_dlights(texture2d<float, access::read_write> color [[texture(0)]]
     float4 c = color.read(uint2(p));
     color.write(float4(saturate(c.rgb * (1.0 + sum)), c.a), uint2(p));
 }
+
+// ---------------------------------------------------------------------------
+// Relighting from the map's own lights (r_rtRelight; mtl_rtlights.c,
+// docs/metal-rt-relight.md)
+//
+// For pixels the raster pass marked (stencil bit 0x80), the framebuffer holds
+// albedo (lightmaps were drawn white). This evaluates q3map's light formulas
+// (q3map/light.c LightingAtSample) for the lights listed in the pixel's grid
+// cell, traces shadow rays for the strongest ones, adds the sun and the
+// worldspawn ambient, and converts to lightmap texel units the way q3map and
+// the renderer do (ColorToBytes, R_ColorShiftLightingBytes).
+// ---------------------------------------------------------------------------
+
+struct EnvLight {           // matches mtl_rt_envlight_t
+    packed_float3 origin;
+    float         photons;
+    packed_float3 color;
+    float         range;
+    packed_float3 normal;
+    float         radiusByDist;
+    int           type;     // 0 point, 1 spot, 2 area
+    int           linear;
+    int           twoSided;
+    int           pad;
+};
+
+struct EnvInfo {            // matches mtl_rt_envinfo_t
+    packed_float3 gridOrigin;
+    float         cellSize;
+    packed_int3   gridDims;
+    int           numLights;
+    packed_float3 ambient;
+    float         lightScale;
+    packed_float3 sunColor;
+    float         pad0;
+    packed_float3 sunDir;
+    float         pad1;
+};
+
+struct RelightUniforms {
+    float4x4 invViewProj;
+    float4   viewOrigin;
+    int4     viewport;
+    int      budget;
+    float    relightScale;
+    int      sun;
+    int      mode;           // r_rtRelight: 2 = no shadow rays (diagnosis)
+};
+
+constant int MAX_BUDGET = 32;   // MTL_RT_MAX_BUDGET
+
+static float3 rlWorldPos(int2 p, float d, constant RelightUniforms &u)
+{
+    float2 ndc = (float2(p - u.viewport.xy) + 0.5) / float2(u.viewport.zw) * 2.0 - 1.0;
+    ndc.y = -ndc.y;
+    float4 w = u.invViewProj * float4(ndc, rtUnhackDepth(d) * 2.0 - 1.0, 1.0);
+    return w.xyz / w.w;
+}
+
+// q3map's light added at a sample, before occlusion (0-255 units, colourless)
+static float q3mapAdd(const device EnvLight &l, float3 P, float3 N, thread float3 &dir, thread float &dist)
+{
+    float3 L = float3(l.origin) - P;
+    dist = length(L);
+    dir = L / max(dist, 1e-4);
+    float d = max(dist, 16.0);       // "clamp the distance to prevent super hot spots"
+    float angle = dot(N, dir);
+
+    if (l.type == 1) {               // spotlight
+        float3 ln = float3(l.normal);
+        float distByNormal = -dot(L, ln);
+        if (distByNormal < 0.0) {
+            return 0.0;
+        }
+        float3 pointAtDist = float3(l.origin) + distByNormal * ln;
+        float radiusAtDist = l.radiusByDist * distByNormal;
+        float sampleRadius = length(P - pointAtDist);
+        if (sampleRadius >= radiusAtDist) {
+            return 0.0;
+        }
+        float coneScale = sampleRadius <= radiusAtDist - 32.0 ? 1.0 : (radiusAtDist - sampleRadius) / 32.0;
+        return l.photons / (d * d) * angle * coneScale;
+    }
+    if (l.type == 2) {               // area light patch
+        if (angle <= 0.0) {
+            return 0.0;
+        }
+        float facing = -dot(float3(l.normal), dir);
+        if (l.twoSided) {
+            facing = abs(facing);
+        }
+        angle *= facing;
+        if (angle <= 0.0) {
+            return 0.0;
+        }
+    }
+    if (l.linear) {
+        return max(angle * l.photons * (1.0 / 8000.0) - d, 0.0);
+    }
+    return l.photons / (d * d) * angle;
+}
+
+kernel void rt_relight(texture2d<float, access::read_write> color [[texture(0)]],
+                       depth2d<float, access::read> depth [[texture(1)]],
+                       texture2d<uint, access::read> stencil [[texture(2)]],
+                       constant RelightUniforms &u [[buffer(0)]],
+                       constant EnvInfo &info [[buffer(1)]],
+                       const device EnvLight *lights [[buffer(2)]],
+                       const device uint *cellStart [[buffer(3)]],
+                       const device uint *cellLights [[buffer(4)]],
+                       primitive_acceleration_structure world [[buffer(5)]],
+                       const device float4 *cubes [[buffer(6)]],
+                       uint2 tid [[thread_position_in_grid]])
+{
+    if (int(tid.x) >= u.viewport.z || int(tid.y) >= u.viewport.w) {
+        return;
+    }
+    int2 p = u.viewport.xy + int2(tid);
+    if ((stencil.read(uint2(p)).r & 0x80u) == 0) {
+        return;                      // not a relit surface
+    }
+    float d = depth.read(uint2(p));
+    if (d >= 1.0) {
+        return;
+    }
+    float3 P = rlWorldPos(p, d, u);
+
+    int2 lo = u.viewport.xy, hi = u.viewport.xy + u.viewport.zw - 1;
+    int2 px0 = clamp(p - int2(1, 0), lo, hi), px1 = clamp(p + int2(1, 0), lo, hi);
+    int2 py0 = clamp(p - int2(0, 1), lo, hi), py1 = clamp(p + int2(0, 1), lo, hi);
+    float3 X0 = rlWorldPos(px0, depth.read(uint2(px0)), u), X1 = rlWorldPos(px1, depth.read(uint2(px1)), u);
+    float3 Y0 = rlWorldPos(py0, depth.read(uint2(py0)), u), Y1 = rlWorldPos(py1, depth.read(uint2(py1)), u);
+    float3 dx = length_squared(X1 - P) < length_squared(P - X0) ? X1 - P : P - X0;
+    float3 dy = length_squared(Y1 - P) < length_squared(P - Y0) ? Y1 - P : P - Y0;
+    float3 N = cross(dx, dy);
+    float nlen = length(N);
+    if (nlen < 1e-6) {
+        return;
+    }
+    N /= nlen;
+    if (dot(N, u.viewOrigin.xyz - P) < 0.0) {
+        N = -N;
+    }
+
+    intersector<> shadow;
+    shadow.accept_any_intersection(true);
+    shadow.assume_geometry_type(geometry_type::triangle);
+    shadow.force_opacity(forced_opacity::opaque);
+
+    // The cell's list holds map lights (point, spot) first, then area
+    // patches, each by strength. Half the shadow-ray budget goes to each
+    // group; what a group cannot trace is scaled by that group's measured
+    // visibility, so sky and area light is shadowed by area rays and lamp
+    // light by lamp rays.
+    int budget = clamp(u.budget, 2, MAX_BUDGET);
+    int budgetPoint = budget / 2, budgetArea = budget - budgetPoint;
+    int tracedPoint = 0, tracedArea = 0;
+    float3 lit = 0.0, restPoint = 0.0, restArea = 0.0;
+    float totalPoint = 0.0, visPoint = 0.0, totalArea = 0.0, visArea = 0.0;
+
+    float3 cellF = (P - float3(info.gridOrigin)) / info.cellSize;
+    int3 dims = int3(info.gridDims);
+    int3 cell = clamp(int3(floor(cellF)), int3(0), dims - 1);
+    uint ci = uint(cell.x + cell.y * dims.x + cell.z * dims.x * dims.y);
+    uint first = cellStart[ci], last = cellStart[ci + 1];
+
+    for (uint k = first; k < last; k++) {
+        const device EnvLight &l = lights[cellLights[k]];
+        bool area = l.type == 2;
+        float3 dir;
+        float dist;
+        float add = q3mapAdd(l, P, N, dir, dist);
+        // q3map's cutoff for point and spot lights; area lights (exact form
+        // factor in q3map) have none, only the grid's range limit
+        if (add <= (area ? 0.0 : 1.0)) {
+            continue;
+        }
+        if (area ? tracedArea >= budgetArea : tracedPoint >= budgetPoint) {
+            if (area) {
+                restArea += l.color * add;
+            } else {
+                restPoint += l.color * add;
+            }
+            continue;
+        }
+        ray r0;
+        r0.origin = P + N * 0.5;
+        r0.direction = dir;
+        r0.min_distance = 0.0;
+        r0.max_distance = max(dist - 1.0, 0.0);
+        bool visible = u.mode == 2 || shadow.intersect(r0, world).type == intersection_type::none;
+        if (area) {
+            tracedArea++;
+            totalArea += add;
+            visArea += visible ? add : 0.0;
+        } else {
+            tracedPoint++;
+            totalPoint += add;
+            visPoint += visible ? add : 0.0;
+        }
+        if (visible) {
+            lit += l.color * add;
+        }
+    }
+
+    // the many weak lights beyond the cell's list (almost all area patches):
+    // its ambient cube, interpolated between the eight nearest cell centres
+    // and weighted by the normal (+x -x +y -y +z -z)
+    {
+        float3 f = (P - float3(info.gridOrigin)) / info.cellSize - 0.5;
+        int3 i0 = clamp(int3(floor(f)), int3(0), dims - 1);
+        int3 i1 = min(i0 + 1, dims - 1);
+        float3 t = saturate(f - float3(i0));
+        float3 w2 = N * N;
+        int3 side = int3(N.x < 0.0 ? 1 : 0, N.y < 0.0 ? 3 : 2, N.z < 0.0 ? 5 : 4);
+        for (int c = 0; c < 8; c++) {
+            int3 cc = int3((c & 1) ? i1.x : i0.x, (c & 2) ? i1.y : i0.y, (c & 4) ? i1.z : i0.z);
+            float3 tw = float3((c & 1) ? t.x : 1.0 - t.x, (c & 2) ? t.y : 1.0 - t.y, (c & 4) ? t.z : 1.0 - t.z);
+            float weight = tw.x * tw.y * tw.z;
+            if (weight <= 0.0) {
+                continue;
+            }
+            uint base = uint(cc.x + cc.y * dims.x + cc.z * dims.x * dims.y) * 6;
+            restArea += weight * (w2.x * cubes[base + side.x].rgb + w2.y * cubes[base + side.y].rgb
+                                  + w2.z * cubes[base + side.z].rgb);
+        }
+    }
+    // untraced light, scaled by its group's visibility (as is where nothing
+    // of the group was traced)
+    lit += restPoint * (totalPoint > 0.0 ? visPoint / totalPoint : 1.0);
+    lit += restArea * (totalArea > 0.0 ? visArea / totalArea : 1.0);
+
+    // sun: lit when the ray toward it leaves the world (the sky is not in it)
+    float3 sunColor = float3(info.sunColor);
+    if (u.sun && any(sunColor > 0.0)) {
+        float3 sd = normalize(float3(info.sunDir));
+        float angle = dot(N, sd);
+        if (angle > 0.0) {
+            ray rs;
+            rs.origin = P + N * 0.5;
+            rs.direction = sd;
+            rs.min_distance = 0.0;
+            rs.max_distance = 65536.0;
+            if (u.mode == 2 || shadow.intersect(rs, world).type == intersection_type::none) {
+                lit += sunColor * angle;
+            }
+        }
+    }
+
+    // to lightmap texel units: q3map clamps by colour normalization, the
+    // renderer shifts by the overbright difference and normalizes again
+    float3 light = (float3(info.ambient) + lit) * info.lightScale * u.relightScale;
+    float m = max(light.r, max(light.g, light.b));
+    if (m > 1.0) {
+        light /= m;
+    }
+    float4 c = color.read(uint2(p));
+    color.write(float4(c.rgb * light, c.a), uint2(p));
+}

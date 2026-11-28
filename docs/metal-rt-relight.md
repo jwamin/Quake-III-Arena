@@ -1,4 +1,4 @@
-<!-- Status: planned, not implemented (written 2026-11-28). -->
+<!-- Status: implemented 2026-11-28; see "As built" at the end for what changed from the plan. -->
 # Plan: ray traced relight mode from the map's own lights (`r_rtRelight`)
 
 ## Context
@@ -130,3 +130,44 @@ q3map formulas to reproduce (`q3map/light.c`):
 5. Performance: `timedemo four` at 1024×768 and 1920×1080 internal with relight off/on
    and budgets 8/16/32; target ≥ 60 fps at 1080p internal on the M4.
 6. Commit, update docs, push (as for previous phases).
+
+## As built (2026-11-28)
+
+Implemented as planned (`code/macos/mtl_rtlights.c`, `rt_relight` in
+`Shaders.metal`, relight mask via stencil bit 0x80 in `mtl_qgl.c`, white
+lightmaps/vertex light in `tr_shade.c`, white entity light in `tr_light.c`),
+with these changes found while matching the baked lightmaps:
+
+- **Area lights have no per-patch cutoff.** q3map lights area surfaces with an
+  exact form factor and no `add <= 1` cutoff; applying the point-light cutoff
+  to each patch dropped most of the sky fill on walls. Patches now reach down
+  to an add of 0.05 (grid range) with no cutoff in the kernel.
+- **Ambient cube per cell.** Evaluating every light that reaches a pixel
+  (~500 on q3dm7) cost 10+ ms. Each 128-unit cell keeps its `r_rtCellLights`
+  (48) highest-priority lights for per-pixel evaluation; the rest are folded
+  on the CPU into an ambient cube (unshadowed light from ±x/±y/±z at the cell
+  centre), interpolated trilinearly and by normal on the GPU.
+- **Global priority, split budget.** Cell lists are ranked map lights first,
+  then area patches, by strength (not by strength at the cell), so neighbouring
+  cells trace the same lights and there is no banding at cell edges. Half the
+  shadow rays go to each group; each group's untraced light (and the cube, for
+  area light) is scaled by that group's measured visibility.
+- **Light colour fallback.** Retail paks lack many editor images (q3dm1's sky
+  `stars_red.tga`). Missing images fall back to the shader's first stage
+  texture, except skies, which use the worldspawn `_color` (the designer's
+  ambient tint) or white; sky cloud textures normalize to near-pure colours.
+- Build buffers come from the system heap (q3dm7 needs ~37 MB).
+- `r_rtRelight 2` evaluates the same lights without shadow rays (diagnosis).
+
+Results (clay mode, fixed views, mean luma of the lower 60%):
+q3dm1 baked 122.6 / relit 127.0; q3dm7 baked 126.4 / relit 120.5. Sun and lamp
+shadows match the baked shapes with sharper edges.
+
+Performance (M4, `timedemo four`): 1024x768 261 fps off / 234 on; 1920x1080
+123 fps on; 3840x2160 via MetalFX from 1920x1080: 60 (capped).
+
+Known limits: sky/area light visibility is decided per patch with one ray, so
+large patches cast hard, slightly polygonal shadows on open floors (soft area
+visibility needs the temporal accumulation and denoising of phases 3 and 5);
+emissive/glow shaders keep their baked look; brush models and entities do not
+cast shadows yet (phase 4).

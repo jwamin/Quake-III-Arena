@@ -120,4 +120,11 @@ qboolean RB_Backend_RTDlights( void ) {
 	return qfalse;
 }
 
+qboolean RB_Backend_RelightActive( void ) {
+	return qfalse;
+}
+
+void RB_Backend_SetRelightMark( int mark ) {
+}
+
 #endif

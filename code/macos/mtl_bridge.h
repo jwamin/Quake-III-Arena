@@ -124,8 +124,50 @@ typedef struct {
 	int32_t viewport[4];    // OpenGL window coordinates (origin bottom left)
 	int32_t numLights;
 	int32_t debugView;      // r_rtShadows 2: show only the RT light (blue: shadowed)
+	int32_t lightBudget;    // relight: shadow rays per pixel (r_rtLightBudget)
+	float   relightScale;   // relight: r_rtRelightScale
+	int32_t sun;            // relight: r_rtSun
+	int32_t relightMode;    // relight: r_rtRelight (2: no shadow rays, for diagnosis)
 	mtl_rt_light_t lights[MTL_RT_MAX_LIGHTS];
 } mtl_rt_view_t;
+
+// ---- relighting from the map's own lights (mtl_rtlights.c, docs/metal-rt-relight.md) ----
+
+#define MTL_RT_MAX_BUDGET   32
+
+enum { MTL_ENVLIGHT_POINT, MTL_ENVLIGHT_SPOT, MTL_ENVLIGHT_AREA };
+
+// One map light in q3map's terms (matches EnvLight in Shaders.metal, 64 bytes).
+typedef struct {
+	float   origin[3];
+	float   photons;        // q3map photons
+	float   color[3];       // normalized (max component 1)
+	float   range;          // beyond this q3map's add drops to <= 1
+	float   normal[3];      // spotlight direction / area light normal
+	float   radiusByDist;   // spotlight cone
+	int32_t type;           // MTL_ENVLIGHT_*
+	int32_t linear;         // spawnflags 1: linear falloff
+	int32_t twoSided;       // area light emitting on both sides
+	int32_t pad;
+} mtl_rt_envlight_t;
+
+// Map-wide relight data (matches EnvInfo in Shaders.metal).
+typedef struct {
+	float   gridOrigin[3];  // light index grid
+	float   cellSize;
+	int32_t gridDims[3];
+	int32_t numLights;
+	float   ambient[3];     // worldspawn _color * ambient (q3map units, 0-255)
+	float   lightScale;     // q3map units -> lightmap texel: 2^(mapOverBright - overbright) / 255
+	float   sunColor[3];    // q3map_sun colour * intensity; 0 = no sun
+	float   pad0;
+	float   sunDir[3];      // towards the sun
+	float   pad1;
+} mtl_rt_envinfo_t;
+
+// relight stencil mark for opaque draws (mtl_qgl.c)
+enum { MTL_RELIGHT_NONE, MTL_RELIGHT_SET, MTL_RELIGHT_CLEAR };
+#define MTL_RELIGHT_STENCIL_BIT 0x80
 
 // ---- implemented in C (mac_glimp.c), called from Swift ----
 

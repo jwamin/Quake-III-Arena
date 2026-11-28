@@ -108,8 +108,9 @@ as Q3 does without gamma (darker than Metal).
 
 The menus that come with the build (`zz_metal_ui.pk3`, see below) add two
 System Setup tabs in the Metal build: **METAL** (renderer, MetalFX upscaling,
-render scale; Accept restarts video) and **RAY TRACING** (ray traced lights,
-clay mode; applied immediately, greyed out unless the Metal renderer runs).
+render scale; Accept restarts video) and **RAY TRACING** (relight the world
+from the map's own lights, shadow rays, ray traced dynamic lights, clay mode;
+applied immediately, greyed out unless the Metal renderer runs).
 The ray tracing and upscaling work is described in `docs/metal-rt.md`.
 
 Not implemented: SMP renderer, joysticks/game controllers, clipboard paste.
