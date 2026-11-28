@@ -5,12 +5,14 @@
 // mtl_state_t plus a packed vertex/index stream. This class turns those into
 // Metal work: pipeline and depth-stencil states are created on demand and
 // cached by key, vertex data goes into per-frame arenas, and the frame is
-// drawn into an offscreen target at the engine's resolution, then scaled into
-// the window and gamma-corrected at present time.
+// drawn into an offscreen target at the engine's resolution, optionally
+// upscaled with MetalFX (r_mtlUpscale), then scaled into the window and
+// gamma-corrected at present time.
 //
 
 import AppKit
 import Metal
+import MetalFX
 import QuartzCore
 
 // MARK: - Per-frame buffer arena
@@ -91,15 +93,25 @@ nonisolated private struct TextureEntry {
 nonisolated final class MetalRenderer {
     nonisolated(unsafe) static private(set) var shared: MetalRenderer?
 
+    /// r_mtlUpscale values.
+    enum Upscale: Int {
+        case off = 0, spatial, temporal, temporalDenoised
+    }
+
     let device: MTLDevice
-    let width: Int
+    let width: Int          // engine (internal) resolution
     let height: Int
+    let outputWidth: Int    // after upscaling
+    let outputHeight: Int
+    private(set) var upscale: Upscale
     private let layer: CAMetalLayer
     private let queue: MTLCommandQueue
     private let library: MTLLibrary
 
     private let colorTarget: MTLTexture
     private let depthTarget: MTLTexture
+    private var spatialScaler: MTLFXSpatialScaler?
+    private var upscaledTarget: MTLTexture?
     private static let colorFormat = MTLPixelFormat.rgba8Unorm
     private static let depthFormat = MTLPixelFormat.depth32Float_stencil8
 
@@ -147,7 +159,8 @@ nonisolated final class MetalRenderer {
 
     // MARK: Setup
 
-    init(layer: CAMetalLayer, width: Int, height: Int) throws {
+    init(layer: CAMetalLayer, width: Int, height: Int, outputWidth: Int, outputHeight: Int,
+         upscale: Upscale) throws {
         guard let device = layer.device ?? MTLCreateSystemDefaultDevice(),
               let queue = device.makeCommandQueue() else {
             throw RendererError.noDevice
@@ -157,6 +170,9 @@ nonisolated final class MetalRenderer {
         self.layer = layer
         self.width = width
         self.height = height
+        self.outputWidth = upscale == .off ? width : outputWidth
+        self.outputHeight = upscale == .off ? height : outputHeight
+        self.upscale = upscale
 
         layer.device = device
         layer.pixelFormat = .bgra8Unorm
@@ -166,9 +182,26 @@ nonisolated final class MetalRenderer {
 
         library = try Self.loadShaderLibrary(device: device)
 
+        if upscale == .temporal || upscale == .temporalDenoised {
+            // needs jitter and motion vectors from the front end (phase 3)
+            MacPrint("MetalFX temporal upscaling is not implemented yet, using spatial\n")
+            self.upscale = .spatial
+        }
+        if self.upscale == .spatial {
+            spatialScaler = Self.makeSpatialScaler(device: device, inputWidth: width, inputHeight: height,
+                                                   outputWidth: outputWidth, outputHeight: outputHeight)
+            if spatialScaler == nil {
+                MacPrint("MetalFX spatial upscaling is not available on this device\n")
+                self.upscale = .off
+            }
+        }
+
         let colorDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.colorFormat, width: width,
                                                                  height: height, mipmapped: false)
         colorDesc.usage = [.renderTarget, .shaderRead]
+        if let spatialScaler {
+            colorDesc.usage.formUnion(spatialScaler.colorTextureUsage)
+        }
         colorDesc.storageMode = .private
         let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.depthFormat, width: width,
                                                                  height: height, mipmapped: false)
@@ -182,6 +215,20 @@ nonisolated final class MetalRenderer {
         depth.label = "Q3 frame depth/stencil"
         colorTarget = color
         depthTarget = depth
+
+        if let spatialScaler {
+            let outDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.colorFormat,
+                                                                   width: outputWidth, height: outputHeight,
+                                                                   mipmapped: false)
+            outDesc.usage = spatialScaler.outputTextureUsage.union(.shaderRead)
+            outDesc.storageMode = .private
+            guard let out = device.makeTexture(descriptor: outDesc) else {
+                throw RendererError.allocation
+            }
+            out.label = "Q3 upscaled color"
+            upscaledTarget = out
+            MacPrint("MetalFX spatial upscaling \(width)x\(height) -> \(outputWidth)x\(outputHeight)\n")
+        }
 
         let presentDesc = MTLRenderPipelineDescriptor()
         presentDesc.label = "present"
@@ -237,6 +284,21 @@ nonisolated final class MetalRenderer {
         commandBuffer = nil
         textures.removeAll()
         MetalRenderer.shared = nil
+    }
+
+    private static func makeSpatialScaler(device: MTLDevice, inputWidth: Int, inputHeight: Int,
+                                          outputWidth: Int, outputHeight: Int) -> MTLFXSpatialScaler? {
+        guard MTLFXSpatialScalerDescriptor.supportsDevice(device) else { return nil }
+        let desc = MTLFXSpatialScalerDescriptor()
+        desc.inputWidth = inputWidth
+        desc.inputHeight = inputHeight
+        desc.outputWidth = outputWidth
+        desc.outputHeight = outputHeight
+        desc.colorTextureFormat = colorFormat
+        desc.outputTextureFormat = colorFormat
+        // the frame is gamma-encoded 8-bit, as the game drew it
+        desc.colorProcessingMode = .perceptual
+        return desc.makeSpatialScaler(device: device)
     }
 
     private static func makeTexture(device: MTLDevice, width: Int, height: Int, bytes: [UInt8]) throws -> MTLTexture {
@@ -317,6 +379,16 @@ nonisolated final class MetalRenderer {
         guard let buffer = ensureCommandBuffer() else { return }
         endEncoding()
 
+        var presentSource = colorTarget
+        if let spatialScaler, let upscaledTarget {
+            spatialScaler.colorTexture = colorTarget
+            spatialScaler.outputTexture = upscaledTarget
+            spatialScaler.inputContentWidth = width
+            spatialScaler.inputContentHeight = height
+            spatialScaler.encode(commandBuffer: buffer)
+            presentSource = upscaledTarget
+        }
+
         let drawableSize = layer.drawableSize
         if drawableSize.width > 0, drawableSize.height > 0, let drawable = layer.nextDrawable() {
             let pass = MTLRenderPassDescriptor()
@@ -328,12 +400,12 @@ nonisolated final class MetalRenderer {
                 enc.label = "present"
                 // fit the frame into the window, keeping its aspect ratio
                 let dw = Double(drawableSize.width), dh = Double(drawableSize.height)
-                let scale = min(dw / Double(width), dh / Double(height))
-                let w = (Double(width) * scale).rounded(), h = (Double(height) * scale).rounded()
+                let scale = min(dw / Double(outputWidth), dh / Double(outputHeight))
+                let w = (Double(outputWidth) * scale).rounded(), h = (Double(outputHeight) * scale).rounded()
                 enc.setViewport(MTLViewport(originX: ((dw - w) / 2).rounded(), originY: ((dh - h) / 2).rounded(),
                                             width: w, height: h, znear: 0, zfar: 1))
                 enc.setRenderPipelineState(presentPipeline)
-                enc.setFragmentTexture(colorTarget, index: 0)
+                enc.setFragmentTexture(presentSource, index: 0)
                 enc.setFragmentTexture(gammaTexture, index: 1)
                 enc.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
                 enc.endEncoding()

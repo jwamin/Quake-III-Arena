@@ -22,6 +22,10 @@ cvar_t *in_mouse;
 cvar_t *in_subframe;    // read by unix_shared.c
 cvar_t *in_nograb;
 
+// Metal-only display cvars (see docs/metal-rt.md)
+cvar_t *r_mtlUpscale;       // 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised
+cvar_t *r_mtlRenderScale;   // internal resolution as a fraction of r_mode
+
 static qboolean mouse_avail;
 static qboolean mouse_active;
 static qboolean video_up;
@@ -222,6 +226,8 @@ VIDEO
 void GLimp_Init( void ) {
 	char name[256];
 	int mode = r_mode->integer;
+	int outputWidth, outputHeight, upscale;
+	float scale;
 
 	InitSig();
 
@@ -237,8 +243,36 @@ void GLimp_Init( void ) {
 	ri.Printf( PRINT_ALL, "...setting mode %d: %d %d%s\n", mode, glConfig.vidWidth, glConfig.vidHeight,
 	           r_fullscreen->integer ? " fullscreen" : "" );
 
+	// The engine renders at the internal size; MetalFX upscales it to the
+	// r_mode size. glConfig reports the internal size, so the front end, 2D
+	// drawing and screenshots all work in internal pixels.
+	r_mtlUpscale = ri.Cvar_Get( "r_mtlUpscale", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_mtlRenderScale = ri.Cvar_Get( "r_mtlRenderScale", "1.0", CVAR_ARCHIVE | CVAR_LATCH );
+	outputWidth = glConfig.vidWidth;
+	outputHeight = glConfig.vidHeight;
+	upscale = r_mtlUpscale->integer;
+	if ( upscale < 0 || upscale > 3 ) {
+		ri.Printf( PRINT_ALL, "...r_mtlUpscale %d out of range, using 0\n", upscale );
+		upscale = 0;
+	}
+	scale = r_mtlRenderScale->value;
+	if ( scale < 0.34f ) {
+		scale = 0.34f;
+	} else if ( scale > 1.0f ) {
+		scale = 1.0f;
+	}
+	if ( upscale && scale < 1.0f ) {
+		glConfig.vidWidth = (int)( outputWidth * scale + 0.5f ) & ~1;
+		glConfig.vidHeight = (int)( outputHeight * scale + 0.5f ) & ~1;
+		ri.Printf( PRINT_ALL, "...rendering at %d %d, upscaled to %d %d\n",
+		           glConfig.vidWidth, glConfig.vidHeight, outputWidth, outputHeight );
+	} else {
+		upscale = 0;
+	}
+
 	name[0] = 0;
-	if ( !MacPlat_InitVideo( glConfig.vidWidth, glConfig.vidHeight, r_fullscreen->integer != 0, name, sizeof( name ) ) ) {
+	if ( !MacPlat_InitVideo( outputWidth, outputHeight, glConfig.vidWidth, glConfig.vidHeight, upscale,
+	                         r_fullscreen->integer != 0, name, sizeof( name ) ) ) {
 		ri.Error( ERR_FATAL, "GLimp_Init() - could not create a Metal window\n" );
 	}
 	video_up = qtrue;

@@ -67,7 +67,7 @@ final class Platform: NSObject, NSWindowDelegate {
 
     // MARK: Setup
 
-    init(width: Int, height: Int, fullscreen: Bool) throws {
+    init(width: Int, height: Int, renderWidth: Int, renderHeight: Int, upscale: Int, fullscreen: Bool) throws {
         Platform.prepareApplication()
         self.fullscreen = fullscreen
 
@@ -97,7 +97,9 @@ final class Platform: NSObject, NSWindowDelegate {
         view = GameView(frame: NSRect(origin: .zero, size: contentRect.size))
         window.contentView = view
         view.metalLayer.device = MTLCreateSystemDefaultDevice()
-        renderer = try MetalRenderer(layer: view.metalLayer, width: width, height: height)
+        renderer = try MetalRenderer(layer: view.metalLayer, width: renderWidth, height: renderHeight,
+                                     outputWidth: width, outputHeight: height,
+                                     upscale: MetalRenderer.Upscale(rawValue: upscale) ?? .off)
 
         super.init()
         window.delegate = self
@@ -287,11 +289,13 @@ final class Platform: NSObject, NSWindowDelegate {
 // MARK: - C entry points (declared in mtl_swift.h)
 
 @_cdecl("MacPlat_InitVideo")
-public func MacPlat_InitVideo(_ width: Int32, _ height: Int32, _ fullscreen: Bool,
+public func MacPlat_InitVideo(_ width: Int32, _ height: Int32, _ renderWidth: Int32, _ renderHeight: Int32,
+                              _ upscale: Int32, _ fullscreen: Bool,
                               _ rendererName: UnsafeMutablePointer<CChar>?, _ nameSize: Int32) -> Bool {
     Platform.shared?.shutdown()
     do {
-        let platform = try Platform(width: Int(width), height: Int(height), fullscreen: fullscreen)
+        let platform = try Platform(width: Int(width), height: Int(height), renderWidth: Int(renderWidth),
+                                    renderHeight: Int(renderHeight), upscale: Int(upscale), fullscreen: fullscreen)
         if let rendererName, nameSize > 0 {
             let name = "Metal: \(platform.renderer.device.name)"
             _ = name.withCString { strlcpy(rendererName, $0, Int(nameSize)) }
