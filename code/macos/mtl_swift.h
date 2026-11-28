@@ -62,6 +62,18 @@ bool MTLR_HasWorld( void );
 // image drawn so far.
 void MTLR_TraceDlights( const mtl_rt_view_t *view );
 
+// Relighting: the map's lights and their index grid (cellStart has
+// numCells + 1 entries into indexes), plus one ambient cube per cell
+// (6 x float4: +x -x +y -y +z -z) for the lights beyond each cell's list.
+// numLights 0 drops them.
+bool MTLR_SetWorldLights( const mtl_rt_envinfo_t *info, const mtl_rt_envlight_t *lights,
+                          const uint32_t *cellStart, int numCells, const uint32_t *indexes, int numIndexes,
+                          const float *cubes );
+// True while map lights are loaded.
+bool MTLR_HasWorldLights( void );
+// Relights the stencil-marked pixels of the opaque image drawn so far.
+void MTLR_Relight( const mtl_rt_view_t *view );
+
 // ---- sound (Audio.swift) ----
 
 // Plays the engine's ring buffer of interleaved 16-bit samples. *position is

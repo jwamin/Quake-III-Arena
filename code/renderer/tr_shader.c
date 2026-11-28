@@ -1433,6 +1433,13 @@ static qboolean ParseShader( char **text )
 			s++;
 			continue;
 		}
+		// light colour source for ray traced relighting (q3map's fallback)
+		else if ( !Q_stricmp( token, "qer_editorimage" ) ) {
+			token = COM_ParseExt( text, qfalse );
+			Q_strncpyz( shader.editorImage, token, sizeof( shader.editorImage ) );
+			SkipRestOfLine( text );
+			continue;
+		}
 		// skip stuff that only the QuakeEdRadient needs
 		else if ( !Q_stricmpn( token, "qer", 3 ) ) {
 			SkipRestOfLine( text );
@@ -1481,6 +1488,30 @@ static qboolean ParseShader( char **text )
         shader.clampTime = atof(token);
       }
     }
+		// surface light parameters, kept for ray traced relighting
+		else if ( !Q_stricmp( token, "q3map_surfacelight" ) ) {
+			token = COM_ParseExt( text, qfalse );
+			shader.surfaceLight = atof( token );
+			continue;
+		}
+		else if ( !Q_stricmp( token, "q3map_lightsubdivide" ) ) {
+			token = COM_ParseExt( text, qfalse );
+			shader.lightSubdivide = atoi( token );
+			continue;
+		}
+		else if ( !Q_stricmp( token, "q3map_backsplash" ) ) {
+			token = COM_ParseExt( text, qfalse );
+			shader.backsplashFraction = atof( token ) * 0.01f;
+			token = COM_ParseExt( text, qfalse );
+			shader.backsplashDistance = atof( token );
+			shader.hasBacksplash = qtrue;
+			continue;
+		}
+		else if ( !Q_stricmp( token, "q3map_lightimage" ) ) {
+			token = COM_ParseExt( text, qfalse );
+			Q_strncpyz( shader.lightImage, token, sizeof( shader.lightImage ) );
+			continue;
+		}
 		// skip stuff that only the q3map needs
 		else if ( !Q_stricmpn( token, "q3map", 5 ) ) {
 			SkipRestOfLine( text );

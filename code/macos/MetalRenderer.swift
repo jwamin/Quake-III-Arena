@@ -118,6 +118,16 @@ nonisolated final class MetalRenderer {
     private var worldAccel: MTLAccelerationStructure?
     private var rtDlightPipeline: MTLComputePipelineState?
     private var rtDlightPipelineFailed = false
+
+    // relighting from the map's lights (r_rtRelight)
+    private var envInfo = mtl_rt_envinfo_t()
+    private var envLights: MTLBuffer?
+    private var envCellStart: MTLBuffer?
+    private var envCellLights: MTLBuffer?
+    private var envCubes: MTLBuffer?
+    private var rtRelightPipeline: MTLComputePipelineState?
+    private var rtRelightPipelineFailed = false
+    private lazy var stencilView: MTLTexture? = depthTarget.makeTextureView(pixelFormat: .x32_stencil8)
     private static let colorFormat = MTLPixelFormat.rgba8Unorm
     private static let depthFormat = MTLPixelFormat.depth32Float_stencil8
 
@@ -211,7 +221,8 @@ nonisolated final class MetalRenderer {
         colorDesc.storageMode = .private
         let depthDesc = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: Self.depthFormat, width: width,
                                                                  height: height, mipmapped: false)
-        depthDesc.usage = [.renderTarget, .shaderRead]                // read by the RT light pass
+        // read by the RT passes; the relight pass reads the stencil through a view
+        depthDesc.usage = [.renderTarget, .shaderRead, .pixelFormatView]
         depthDesc.storageMode = .private
         guard let color = device.makeTexture(descriptor: colorDesc),
               let depth = device.makeTexture(descriptor: depthDesc) else {
@@ -495,6 +506,99 @@ nonisolated final class MetalRenderer {
     }
 
     var hasWorld: Bool { worldAccel != nil }
+
+    /// The map's lights and their index grid, for the relight pass.
+    func setWorldLights(info: UnsafePointer<mtl_rt_envinfo_t>?, lights: UnsafePointer<mtl_rt_envlight_t>?,
+                        cellStart: UnsafePointer<UInt32>?, numCells: Int,
+                        indexes: UnsafePointer<UInt32>?, numIndexes: Int, cubes: UnsafePointer<Float>?) -> Bool {
+        envLights = nil
+        envCellStart = nil
+        envCellLights = nil
+        envCubes = nil
+        guard let info, let lights, let cellStart, let cubes, info.pointee.numLights > 0, numCells > 0 else {
+            return false
+        }
+        envCubes = device.makeBuffer(bytes: cubes, length: numCells * 6 * 4 * MemoryLayout<Float>.size,
+                                     options: .storageModeShared)
+        envInfo = info.pointee
+        envLights = device.makeBuffer(bytes: lights,
+                                      length: Int(info.pointee.numLights) * MemoryLayout<mtl_rt_envlight_t>.stride,
+                                      options: .storageModeShared)
+        envCellStart = device.makeBuffer(bytes: cellStart, length: (numCells + 1) * MemoryLayout<UInt32>.size,
+                                         options: .storageModeShared)
+        if let indexes, numIndexes > 0 {
+            envCellLights = device.makeBuffer(bytes: indexes, length: numIndexes * MemoryLayout<UInt32>.size,
+                                              options: .storageModeShared)
+        } else {
+            var zero: UInt32 = 0
+            envCellLights = device.makeBuffer(bytes: &zero, length: 4, options: .storageModeShared)
+        }
+        return envLights != nil && envCellStart != nil && envCellLights != nil && envCubes != nil
+    }
+
+    var hasWorldLights: Bool { envLights != nil && worldAccel != nil }
+
+    /// Matches RelightUniforms in Shaders.metal.
+    private struct RelightUniforms {
+        var invViewProj: simd_float4x4
+        var viewOrigin: SIMD4<Float>
+        var viewport: SIMD4<Int32>
+        var budget: Int32
+        var relightScale: Float
+        var sun: Int32
+        var mode: Int32
+    }
+
+    private func relightPipeline() -> MTLComputePipelineState? {
+        if let rtRelightPipeline { return rtRelightPipeline }
+        if rtRelightPipelineFailed { return nil }
+        do {
+            guard let fn = library.makeFunction(name: "rt_relight") else { throw RendererError.noShaderLibrary }
+            rtRelightPipeline = try device.makeComputePipelineState(function: fn)
+        } catch {
+            MacPrint("RT: relight pipeline failed: \(error)\n")
+            rtRelightPipelineFailed = true
+        }
+        return rtRelightPipeline
+    }
+
+    /// Relights the stencil-marked pixels of the opaque image drawn so far.
+    func relight(_ viewPtr: UnsafePointer<mtl_rt_view_t>) {
+        let view = viewPtr.pointee
+        guard let world = worldAccel, let lights = envLights, let cellStart = envCellStart,
+              let cellLights = envCellLights, let cubes = envCubes, let stencil = stencilView,
+              let pipeline = relightPipeline() else { return }
+
+        let vx = Int(view.viewport.0), vw = Int(view.viewport.2), vh = Int(view.viewport.3)
+        let vy = height - Int(view.viewport.1) - vh
+        guard vw > 0, vh > 0, vx >= 0, vy >= 0, vx + vw <= width, vy + vh <= height else { return }
+
+        let viewProj = Self.matrix(view.projection) * Self.matrix(view.modelview)
+        var uniforms = RelightUniforms(invViewProj: viewProj.inverse,
+                                       viewOrigin: SIMD4(view.viewOrigin.0, view.viewOrigin.1, view.viewOrigin.2, 1),
+                                       viewport: SIMD4(Int32(vx), Int32(vy), Int32(vw), Int32(vh)),
+                                       budget: view.lightBudget, relightScale: view.relightScale, sun: view.sun,
+                                       mode: view.relightMode)
+
+        guard let buffer = ensureCommandBuffer() else { return }
+        endEncoding()   // drawing resumes in a new render pass that loads this one's result
+        guard let enc = buffer.makeComputeCommandEncoder() else { return }
+        enc.label = "RT relight"
+        enc.setComputePipelineState(pipeline)
+        enc.setTexture(colorTarget, index: 0)
+        enc.setTexture(depthTarget, index: 1)
+        enc.setTexture(stencil, index: 2)
+        enc.setBytes(&uniforms, length: MemoryLayout<RelightUniforms>.stride, index: 0)
+        enc.setBytes(&envInfo, length: MemoryLayout<mtl_rt_envinfo_t>.stride, index: 1)
+        enc.setBuffer(lights, offset: 0, index: 2)
+        enc.setBuffer(cellStart, offset: 0, index: 3)
+        enc.setBuffer(cellLights, offset: 0, index: 4)
+        enc.setAccelerationStructure(world, bufferIndex: 5)
+        enc.setBuffer(cubes, offset: 0, index: 6)
+        enc.dispatchThreads(MTLSize(width: vw, height: vh, depth: 1),
+                            threadsPerThreadgroup: MTLSize(width: 8, height: 8, depth: 1))
+        enc.endEncoding()
+    }
 
     private func dlightPipeline() -> MTLComputePipelineState? {
         if let rtDlightPipeline { return rtDlightPipeline }
@@ -1090,6 +1194,25 @@ public func MTLR_SetWorldGeometry(_ xyz: UnsafePointer<Float>?, _ numVerts: Int3
 @_cdecl("MTLR_HasWorld")
 public func MTLR_HasWorld() -> Bool {
     MetalRenderer.shared?.hasWorld ?? false
+}
+
+@_cdecl("MTLR_SetWorldLights")
+public func MTLR_SetWorldLights(_ info: UnsafePointer<mtl_rt_envinfo_t>?, _ lights: UnsafePointer<mtl_rt_envlight_t>?,
+                                _ cellStart: UnsafePointer<UInt32>?, _ numCells: Int32,
+                                _ indexes: UnsafePointer<UInt32>?, _ numIndexes: Int32,
+                                _ cubes: UnsafePointer<Float>?) -> Bool {
+    MetalRenderer.shared?.setWorldLights(info: info, lights: lights, cellStart: cellStart, numCells: Int(numCells),
+                                         indexes: indexes, numIndexes: Int(numIndexes), cubes: cubes) ?? false
+}
+
+@_cdecl("MTLR_HasWorldLights")
+public func MTLR_HasWorldLights() -> Bool {
+    MetalRenderer.shared?.hasWorldLights ?? false
+}
+
+@_cdecl("MTLR_Relight")
+public func MTLR_Relight(_ view: UnsafePointer<mtl_rt_view_t>) {
+    MetalRenderer.shared?.relight(view)
 }
 
 @_cdecl("MTLR_TraceDlights")

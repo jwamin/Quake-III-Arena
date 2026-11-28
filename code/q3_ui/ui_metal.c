@@ -7,8 +7,8 @@ these tabs appear only there. See docs/metal-rt.md for the cvars.
 
   METAL        r_renderer (Metal / OpenGL), r_mtlUpscale, r_mtlRenderScale;
                latched, applied with Accept (vid_restart)
-  RAY TRACING  r_rtShadows (Off / On / Debug View), r_clay; applied
-               immediately, need the Metal
+  RAY TRACING  r_rtRelight, r_rtLightBudget, r_rtShadows (Off / On /
+               Debug View), r_clay; applied immediately, need the Metal
                renderer
 
 The other System Setup pages add the two tabs with UI_MetalTabs_Add.
@@ -37,6 +37,8 @@ The other System Setup pages add the two tabs with UI_MetalTabs_Add.
 #define ID_SCALE			210
 #define ID_RTLIGHTS			211
 #define ID_CLAY				212
+#define ID_RELIGHT			213
+#define ID_BUDGET			214
 
 enum { TAB_NONE, TAB_METAL, TAB_RT };
 
@@ -119,6 +121,8 @@ static const float scale_values[] = { 1.0f, 0.75f, 0.67f, 0.5f, 0.34f };
 #define NUM_SCALES	( sizeof( scale_values ) / sizeof( scale_values[0] ) )
 static const char *onoff_names[] = { "Off", "On", 0 };
 static const char *rtlights_names[] = { "Off", "On", "Debug View", 0 };	// r_rtShadows 0..2
+static const char *budget_names[] = { "4", "8", "16", "32", 0 };				// r_rtLightBudget
+static const int budget_values[] = { 4, 8, 16, 32 };
 
 typedef struct {
 	menuframework_s	menu;
@@ -141,6 +145,8 @@ typedef struct {
 	int				initRenderer, initUpscale, initScale;
 
 	// RAY TRACING
+	menulist_s		relight;
+	menulist_s		budget;
 	menulist_s		rtLights;
 	menulist_s		clay;
 
@@ -222,6 +228,14 @@ static void MetalOptions_Event( void *ptr, int event ) {
 	case ID_CLAY:
 		trap_Cvar_SetValue( "r_clay", s_metal.clay.curvalue );
 		break;
+
+	case ID_RELIGHT:
+		trap_Cvar_SetValue( "r_rtRelight", s_metal.relight.curvalue );
+		break;
+
+	case ID_BUDGET:
+		trap_Cvar_SetValue( "r_rtLightBudget", budget_values[s_metal.budget.curvalue] );
+		break;
 	}
 }
 
@@ -238,7 +252,7 @@ static void MetalOptions_Draw( void ) {
 		note = "Needs the Metal renderer (METAL tab)";
 	}
 	if ( note ) {
-		UI_DrawString( 400, 240 + 2 * ( BIGCHAR_HEIGHT + 2 ), note, UI_CENTER | UI_SMALLFONT, text_color_normal );
+		UI_DrawString( 400, 240 + 4 * ( BIGCHAR_HEIGHT + 2 ), note, UI_CENTER | UI_SMALLFONT, text_color_normal );
 	}
 }
 
@@ -348,6 +362,11 @@ static void MetalOptions_Init( int tab ) {
 		Menu_AddItem( &s_metal.menu, &s_metal.upscale );
 		Menu_AddItem( &s_metal.menu, &s_metal.scale );
 	} else {
+		// relight the world from the map's own lights (docs/metal-rt-relight.md)
+		MetalOptions_List( &s_metal.relight, ID_RELIGHT, "Relight World:", onoff_names, y );
+		y += BIGCHAR_HEIGHT + 2;
+		MetalOptions_List( &s_metal.budget, ID_BUDGET, "Shadow Rays:", budget_names, y );
+		y += BIGCHAR_HEIGHT + 2;
 		MetalOptions_List( &s_metal.rtLights, ID_RTLIGHTS, "Ray Traced Lights:", rtlights_names, y );
 		y += BIGCHAR_HEIGHT + 2;
 		// lighting only, to look at the ray traced light
@@ -357,10 +376,24 @@ static void MetalOptions_Init( int tab ) {
 			s_metal.rtLights.curvalue = 1;
 		}
 		s_metal.clay.curvalue = trap_Cvar_VariableValue( "r_clay" ) != 0;
+		s_metal.relight.curvalue = trap_Cvar_VariableValue( "r_rtRelight" ) != 0;
+		{
+			int b = trap_Cvar_VariableValue( "r_rtLightBudget" ), i;
+			s_metal.budget.curvalue = 2;
+			for ( i = 0; i < 4; i++ ) {
+				if ( budget_values[i] == b ) {
+					s_metal.budget.curvalue = i;
+				}
+			}
+		}
 		if ( !UI_MetalRendererActive() ) {
 			s_metal.rtLights.generic.flags |= QMF_GRAYED;
 			s_metal.clay.generic.flags |= QMF_GRAYED;
+			s_metal.relight.generic.flags |= QMF_GRAYED;
+			s_metal.budget.generic.flags |= QMF_GRAYED;
 		}
+		Menu_AddItem( &s_metal.menu, &s_metal.relight );
+		Menu_AddItem( &s_metal.menu, &s_metal.budget );
 		Menu_AddItem( &s_metal.menu, &s_metal.rtLights );
 		Menu_AddItem( &s_metal.menu, &s_metal.clay );
 	}

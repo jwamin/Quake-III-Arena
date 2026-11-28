@@ -22,6 +22,13 @@ the qgl* function pointers declared in renderer/qgl.h.
 #include "mtl_swift.h"
 
 #define MAX_MATRIX_DEPTH   32
+
+// relight stencil mark for the next draws (MTL_RELIGHT_*), set by mtl_rt.c
+static int relightMark;
+
+void MTL_SetRelightMark( int mark ) {
+	relightMark = mark;
+}
 #define MAX_TEXNUM         16384
 
 typedef struct {
@@ -635,6 +642,18 @@ static void BuildState( mtl_state_t *s ) {
 	s->stencilRef = (uint8_t)gl.stencilRef;
 	s->stencilReadMask = (uint8_t)gl.stencilValueMask;
 	s->stencilWriteMask = (uint8_t)gl.stencilWriteMask;
+	if ( relightMark != MTL_RELIGHT_NONE && !gl.stencilTest ) {
+		// relight mask (r_rtRelight): set or clear one stencil bit where the
+		// surface is drawn, for the rt_relight pass
+		s->stencilTest = 1;
+		s->stencilFunc = MTL_CMP_ALWAYS;
+		s->stencilFail = MTL_STENCIL_KEEP;
+		s->stencilZFail = MTL_STENCIL_KEEP;
+		s->stencilZPass = MTL_STENCIL_REPLACE;
+		s->stencilRef = relightMark == MTL_RELIGHT_SET ? MTL_RELIGHT_STENCIL_BIT : 0;
+		s->stencilReadMask = 0;
+		s->stencilWriteMask = MTL_RELIGHT_STENCIL_BIT;
+	}
 
 	if ( gl.cullFace ) {
 		s->cullMode = ( gl.cullFaceMode == GL_BACK ) ? MTL_CULL_BACK : MTL_CULL_FRONT;

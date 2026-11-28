@@ -28,6 +28,12 @@ cvar_t *r_mtlUpscale;       // 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal 
 cvar_t *r_mtlRenderScale;   // internal resolution as a fraction of r_mode
 cvar_t *r_rtShadows;        // 1: ray traced dynamic lights and shadows, 2: debug view (mtl_rt.c); not latched
 cvar_t *r_rtDebugLight;     // "x y z radius": a white test light for the RT pass
+cvar_t *r_rtRelight;        // relight the world from the map's own lights (mtl_rtlights.c)
+cvar_t *r_rtLightBudget;    // relight: shadow rays per pixel
+cvar_t *r_rtRelightScale;   // relight: brightness calibration
+cvar_t *r_rtAreaSubdivide;  // relight: surface light patch size (applied on map load)
+cvar_t *r_rtSun;            // relight: sun light from q3map_sun
+cvar_t *r_rtCellLights;     // relight: lights evaluated per pixel per cell (rest: ambient cube)
 
 static qboolean mouse_avail;
 static qboolean mouse_active;
@@ -244,6 +250,12 @@ void GLimp_Init( void ) {
 	r_mtlRenderScale = ri.Cvar_Get( "r_mtlRenderScale", "1.0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_rtShadows = ri.Cvar_Get( "r_rtShadows", "0", CVAR_ARCHIVE );
 	r_rtDebugLight = ri.Cvar_Get( "r_rtDebugLight", "", CVAR_CHEAT );
+	r_rtRelight = ri.Cvar_Get( "r_rtRelight", "0", CVAR_ARCHIVE );
+	r_rtLightBudget = ri.Cvar_Get( "r_rtLightBudget", "16", CVAR_ARCHIVE );
+	r_rtRelightScale = ri.Cvar_Get( "r_rtRelightScale", "1.0", CVAR_ARCHIVE );
+	r_rtAreaSubdivide = ri.Cvar_Get( "r_rtAreaSubdivide", "128", CVAR_ARCHIVE | CVAR_LATCH );
+	r_rtSun = ri.Cvar_Get( "r_rtSun", "1", CVAR_ARCHIVE );
+	r_rtCellLights = ri.Cvar_Get( "r_rtCellLights", "48", CVAR_ARCHIVE | CVAR_LATCH );
 
 	metal = Q_stricmp( r_renderer->string, "opengl" ) != 0;
 	if ( metal && Q_stricmp( r_renderer->string, "metal" ) ) {

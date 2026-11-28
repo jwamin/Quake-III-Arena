@@ -106,4 +106,19 @@ void		RB_Backend_OpaqueDone( void );
 */
 qboolean	RB_Backend_RTDlights( void );
 
+/*
+** Relighting (r_rtRelight, docs/metal-rt-relight.md): the backend replaces
+** the lightmaps with ray traced light from the map's own lights. While it is
+** active the renderer draws relightable surfaces with white lightmaps (so the
+** framebuffer holds albedo) and tells the backend, per opaque batch, whether
+** its pixels are to be relit.
+*/
+enum {
+	RB_RELIGHT_NONE,		// not an opaque world-view draw: leave the mask alone
+	RB_RELIGHT_SET,			// relight these pixels
+	RB_RELIGHT_CLEAR		// opaque but not relit (drawn with baked lighting)
+};
+qboolean	RB_Backend_RelightActive( void );
+void		RB_Backend_SetRelightMark( int mark );
+
 #endif	// RB_BACKEND_H

@@ -1803,6 +1803,8 @@ void RE_LoadWorldMap( const char *name ) {
 	tr.sunDirection[2] = 0.9f;
 
 	VectorNormalize( tr.sunDirection );
+	// no sun unless this map's sky shader has q3map_sun
+	VectorClear( tr.sunLight );
 
 	tr.worldMapLoaded = qtrue;
 

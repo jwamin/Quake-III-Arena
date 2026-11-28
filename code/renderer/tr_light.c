@@ -355,6 +355,13 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 		}
 	}
 
+	// relighting (r_rtRelight): the model is drawn with white light so the
+	// framebuffer holds its albedo; the backend lights it, with shadows
+	if ( RB_Backend_RelightActive() && !( refdef->rdflags & RDF_NOWORLDMODEL ) ) {
+		VectorSet( ent->ambientLight, 255, 255, 255 );
+		VectorClear( ent->directedLight );
+	}
+
 	if ( r_debugLight->integer ) {
 		LogLight( ent );
 	}

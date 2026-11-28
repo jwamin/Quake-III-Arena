@@ -16,6 +16,13 @@ Metal port: the ray tracing hooks of rb_backend.h (docs/metal-rt.md).
 extern cvar_t *r_rtShadows;     // mac_glimp.c
 extern cvar_t *r_rtDebugLight;  // mac_glimp.c: "x y z radius" adds a white test light
 extern qboolean mac_metalRenderer;  // mac_glimp.c: false with r_renderer opengl
+extern cvar_t *r_rtRelight;         // mac_glimp.c: relight from the map's lights
+extern cvar_t *r_rtLightBudget;
+extern cvar_t *r_rtRelightScale;
+extern cvar_t *r_rtSun;
+
+void RT_BuildWorldLights( void );       // mtl_rtlights.c
+void MTL_SetRelightMark( int mark );    // mtl_qgl.c
 
 /*
 ==============================================================================
@@ -166,6 +173,14 @@ void RB_Backend_WorldLoaded( void ) {
 
 	ri.Free( idx );
 	ri.Free( xyz );
+
+	// the map's own lights, for r_rtRelight (built whenever ray tracing works,
+	// so the cvar can be toggled live)
+	if ( MTLR_HasWorld() ) {
+		RT_BuildWorldLights();
+	} else {
+		MTLR_SetWorldLights( NULL, NULL, NULL, 0, NULL, 0, NULL );
+	}
 }
 
 /*
@@ -180,15 +195,22 @@ qboolean RB_Backend_RTDlights( void ) {
 	return ( r_rtShadows && r_rtShadows->integer && MTLR_HasWorld() ) ? qtrue : qfalse;
 }
 
+qboolean RB_Backend_RelightActive( void ) {
+	return ( mac_metalRenderer && r_rtRelight && r_rtRelight->integer && MTLR_HasWorldLights() ) ? qtrue : qfalse;
+}
+
+void RB_Backend_SetRelightMark( int mark ) {
+	MTL_SetRelightMark( mark == RB_RELIGHT_SET ? MTL_RELIGHT_SET
+	                  : mark == RB_RELIGHT_CLEAR ? MTL_RELIGHT_CLEAR : MTL_RELIGHT_NONE );
+}
+
 void RB_Backend_OpaqueDone( void ) {
 	static mtl_rt_view_t view;
 	const viewParms_t *vp = &backEnd.viewParms;
 	int i, n;
+	qboolean relight = RB_Backend_RelightActive();
 
-	if ( !RB_Backend_RTDlights() || ( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) ) {
-		return;
-	}
-	if ( !r_dynamiclight->integer ) {
+	if ( ( !RB_Backend_RTDlights() && !relight ) || ( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) ) {
 		return;
 	}
 
@@ -199,6 +221,22 @@ void RB_Backend_OpaqueDone( void ) {
 	view.viewport[1] = vp->viewportY;
 	view.viewport[2] = vp->viewportWidth;
 	view.viewport[3] = vp->viewportHeight;
+	view.numLights = 0;
+	view.debugView = 0;
+
+	// relight first: the dynamic lights then go on top of the relit image
+	if ( relight ) {
+		view.lightBudget = r_rtLightBudget->integer;
+		if ( view.lightBudget < 1 ) view.lightBudget = 1;
+		if ( view.lightBudget > MTL_RT_MAX_BUDGET ) view.lightBudget = MTL_RT_MAX_BUDGET;
+		view.relightScale = r_rtRelightScale->value;
+		view.sun = r_rtSun->integer;
+		view.relightMode = r_rtRelight->integer;
+		MTLR_Relight( &view );
+	}
+	if ( !RB_Backend_RTDlights() || !r_dynamiclight->integer ) {
+		return;
+	}
 
 	n = backEnd.refdef.num_dlights;
 	if ( n > MTL_RT_MAX_LIGHTS ) {

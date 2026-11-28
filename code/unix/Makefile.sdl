@@ -196,7 +196,7 @@ else
   SWIFT_OPT := -O
 endif
 SWIFT_FLAGS := -parse-as-library -module-name Q3Metal -import-objc-header $(MACDIR)/mtl_bridge.h $(SWIFT_OPT)
-METAL_LAYER := mtl_qgl mtl_rt mac_glimp mac_snd
+METAL_LAYER := mtl_qgl mtl_rt mtl_rtlights mac_glimp mac_snd
 
 METAL_OBJ := $(addprefix $(BUILD)/metal/,$(addsuffix .o,$(SRC_CLIENT) $(SRC_SERVER) $(SRC_QCOMMON) \
                $(SRC_GAME) $(SRC_BOTLIB) $(SRC_JPEG) $(SRC_RENDERER) $(UNIX_COMMON) $(METAL_LAYER))) \
