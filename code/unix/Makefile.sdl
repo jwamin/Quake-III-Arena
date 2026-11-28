@@ -107,7 +107,7 @@ SRC_JPEG := \
 	jidctflt jmemmgr jmemnobs jutils
 
 SRC_RENDERER := \
-	tr_animation tr_backend tr_bsp tr_cmds tr_curve tr_flares \
+	rb_gl tr_animation tr_backend tr_bsp tr_cmds tr_curve tr_flares \
 	tr_font tr_image tr_init tr_light tr_main tr_marks \
 	tr_mesh tr_model tr_noise tr_scene tr_shade tr_shade_calc \
 	tr_shader tr_shadows tr_sky tr_surface tr_world
