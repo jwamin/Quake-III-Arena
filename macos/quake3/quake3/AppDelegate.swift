@@ -26,6 +26,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Start the engine once launching has finished. Q3_Main never returns:
         // its loop runs on the main thread and pumps AppKit events itself
         // (code/macos/Platform.swift) and renders with Metal.
+        installBundledPaks()
         DispatchQueue.main.async {
             self.runEngine(basePath: gameFolder.path)
         }
@@ -57,6 +58,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         argv.append(nil)
         engineRunning = true
         _ = Q3_Main(Int32(args.count), &argv)
+    }
+
+    // MARK: - Bundled paks
+
+    /// Copies the paks built with the app (zz_metal_ui.pk3: the menus with the
+    /// Metal options) into the engine's home folder. The game folder is
+    /// read-only to the sandboxed app, and paks in the home folder override
+    /// the game folder's, so this is where they take effect.
+    private func installBundledPaks() {
+        // the engine's default fs_homepath (Sys_DefaultHomePath), inside the container
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent("Library/Application Support/Quake3/baseq3", isDirectory: true)
+        let fm = FileManager.default
+        guard let paks = Bundle.main.urls(forResourcesWithExtension: "pk3", subdirectory: nil), !paks.isEmpty else {
+            return
+        }
+        do {
+            try fm.createDirectory(at: home, withIntermediateDirectories: true)
+            for pak in paks {
+                let dest = home.appendingPathComponent(pak.lastPathComponent)
+                if fm.contentsEqual(atPath: pak.path, andPath: dest.path) { continue }
+                try? fm.removeItem(at: dest)
+                try fm.copyItem(at: pak, to: dest)
+            }
+        } catch {
+            NSLog("quake3: could not install bundled paks: \(error)")
+        }
     }
 
     // MARK: - Game folder

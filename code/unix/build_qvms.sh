@@ -10,6 +10,9 @@
 #
 # usage: ./build_qvms.sh            (from code/unix; needs gcc, make, python3)
 #
+#   MODULES="ui" PK3=out.pk3 ./build_qvms.sh    build and pack only some modules
+#   (qagame, cgame, ui); the macOS app uses this for its zz_metal_ui.pk3.
+#
 set -e
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -17,6 +20,7 @@ CODE=$(cd "$HERE/.." && pwd)
 ROOT=$(cd "$CODE/.." && pwd)
 WORK=${WORK:-$ROOT/build_qvm}          # scratch build directory
 PK3=${PK3:-$ROOT/run/baseq3/zz_vm_from_source.pk3}
+MODULES=${MODULES:-qagame cgame ui}
 BIN=$WORK/bin
 OUT=$WORK/out
 
@@ -63,17 +67,22 @@ build() {
     ( cd "$WORK/$name/vm" && q3asm -f "../$name" | tail -3 )
 }
 
-build qagame game   game.bat    game.q3asm    ""        "$CODE/ui"
-build cgame  cgame  cgame.bat   cgame.q3asm   "-DCGAME" "$CODE/ui"
-build ui     q3_ui  q3_ui.bat   q3_ui.q3asm   ""        "$CODE/q3_ui"
+for m in $MODULES; do
+    case $m in
+    qagame) build qagame game   game.bat    game.q3asm    ""        "$CODE/ui" ;;
+    cgame)  build cgame  cgame  cgame.bat   cgame.q3asm   "-DCGAME" "$CODE/ui" ;;
+    ui)     build ui     q3_ui  q3_ui.bat   q3_ui.q3asm   ""        "$CODE/q3_ui" ;;
+    *)      echo "unknown module $m"; exit 1 ;;
+    esac
+done
 
 # ---- pack ------------------------------------------------------------------------
 mkdir -p "$(dirname "$PK3")"
-OUT="$OUT" PK3="$PK3" python3 -I - <<'EOF'
+OUT="$OUT" PK3="$PK3" MODULES="$MODULES" python3 -I - <<'EOF'
 import os, zipfile
 out, pk3 = os.environ["OUT"], os.environ["PK3"]
 with zipfile.ZipFile(pk3, "w", zipfile.ZIP_DEFLATED) as z:
-    for n in ("qagame", "cgame", "ui"):
+    for n in os.environ["MODULES"].split():
         z.write(os.path.join(out, n + ".qvm"), "vm/%s.qvm" % n)
 print("wrote", pk3)
 EOF

@@ -104,6 +104,7 @@
 				08EAC35C30B5E04400C18848 /* Sources */,
 				08EAC35D30B5E04400C18848 /* Frameworks */,
 				08EAC35E30B5E04400C18848 /* Resources */,
+				0A51E0F430B6000100C18848 /* Build UI pk3 */,
 			);
 			buildRules = (
 			);
@@ -228,6 +229,16 @@
 			shellPath = /bin/sh;
 			shellScript = (
 				"\"$SRCROOT/scripts/build_engine.sh\"",
+				"",
+			);
+		};
+		0A51E0F430B6000100C18848 /* Build UI pk3 */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			name = "Build UI pk3";
+			shellPath = /bin/sh;
+			shellScript = (
+				"\"$SRCROOT/scripts/build_ui_pk3.sh\"",
 				"",
 			);
 		};
