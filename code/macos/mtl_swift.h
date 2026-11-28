@@ -12,12 +12,16 @@ Metal port: functions implemented in Swift (@_cdecl), for the C side.
 
 // ---- window and events (Platform.swift) ----
 
-// Opens the game window with a Metal layer and starts the renderer. The engine
-// renders at renderWidth x renderHeight; with upscale set (1 MetalFX spatial,
-// 2 temporal, 3 temporal denoised) MetalFX scales that to outputWidth x
-// outputHeight. The result is scaled to fit the window.
+// Opens the game window. Metal: a Metal layer and the renderer; the engine
+// renders at renderWidth x renderHeight, and with upscale set (1 MetalFX
+// spatial, 2 temporal, 3 temporal denoised) MetalFX scales that to
+// outputWidth x outputHeight; the result is scaled to fit the window.
+// opengl: an OpenGL (legacy profile) view and context, made current, at
+// outputWidth x outputHeight (render size and upscale are ignored).
 bool MacPlat_InitVideo( int outputWidth, int outputHeight, int renderWidth, int renderHeight, int upscale,
-                        bool fullscreen, char *rendererName, int rendererNameSize );
+                        bool fullscreen, bool opengl, char *rendererName, int rendererNameSize );
+// OpenGL only: presents the back buffer.
+void MacPlat_SwapBuffers( void );
 void MacPlat_ShutdownVideo( void );
 // Delivers pending AppKit events through the MacQ_* callbacks.
 void MacPlat_PumpEvents( void );

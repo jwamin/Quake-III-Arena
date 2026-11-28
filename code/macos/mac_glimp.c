@@ -23,6 +23,7 @@ cvar_t *in_subframe;    // read by unix_shared.c
 cvar_t *in_nograb;
 
 // Metal-only display cvars (see docs/metal-rt.md)
+cvar_t *r_renderer;         // "metal" or "opengl" (latched)
 cvar_t *r_mtlUpscale;       // 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised
 cvar_t *r_mtlRenderScale;   // internal resolution as a fraction of r_mode
 cvar_t *r_rtShadows;        // ray traced dynamic lights and shadows (mtl_rt.c); not latched
@@ -225,19 +226,37 @@ VIDEO
 ==============================================================================
 */
 
+// Metal (MetalRenderer.swift via mtl_qgl.c), or OpenGL through the OpenGL
+// framework (r_renderer opengl): both share the window and event code.
+qboolean mac_metalRenderer;     // read by mtl_rt.c
+
 void GLimp_Init( void ) {
 	char name[256];
 	int mode = r_mode->integer;
 	int outputWidth, outputHeight, upscale;
 	float scale;
+	qboolean metal;
 
 	InitSig();
 
-	if ( !QGL_Init( NULL ) ) {
-		ri.Error( ERR_FATAL, "GLimp_Init() - could not set up the Metal translation layer\n" );
+	r_renderer = ri.Cvar_Get( "r_renderer", "metal", CVAR_ARCHIVE | CVAR_LATCH );
+	r_mtlUpscale = ri.Cvar_Get( "r_mtlUpscale", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_mtlRenderScale = ri.Cvar_Get( "r_mtlRenderScale", "1.0", CVAR_ARCHIVE | CVAR_LATCH );
+	r_rtShadows = ri.Cvar_Get( "r_rtShadows", "0", CVAR_ARCHIVE );
+	r_rtDebugLight = ri.Cvar_Get( "r_rtDebugLight", "", CVAR_CHEAT );
+
+	metal = Q_stricmp( r_renderer->string, "opengl" ) != 0;
+	if ( metal && Q_stricmp( r_renderer->string, "metal" ) ) {
+		ri.Printf( PRINT_ALL, "...unknown r_renderer \"%s\", using metal\n", r_renderer->string );
+	}
+	mac_metalRenderer = metal;
+
+	if ( !QGL_Init( metal ? NULL : "opengl" ) ) {
+		ri.Error( ERR_FATAL, metal ? "GLimp_Init() - could not set up the Metal translation layer\n"
+		                           : "GLimp_Init() - could not load OpenGL\n" );
 	}
 
-	ri.Printf( PRINT_ALL, "Initializing Metal display\n" );
+	ri.Printf( PRINT_ALL, "Initializing %s display\n", metal ? "Metal" : "OpenGL" );
 	if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, mode ) ) {
 		ri.Printf( PRINT_ALL, "...invalid mode %d, using 640x480\n", mode );
 		R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, 3 );
@@ -245,16 +264,12 @@ void GLimp_Init( void ) {
 	ri.Printf( PRINT_ALL, "...setting mode %d: %d %d%s\n", mode, glConfig.vidWidth, glConfig.vidHeight,
 	           r_fullscreen->integer ? " fullscreen" : "" );
 
-	// The engine renders at the internal size; MetalFX upscales it to the
-	// r_mode size. glConfig reports the internal size, so the front end, 2D
-	// drawing and screenshots all work in internal pixels.
-	r_mtlUpscale = ri.Cvar_Get( "r_mtlUpscale", "0", CVAR_ARCHIVE | CVAR_LATCH );
-	r_mtlRenderScale = ri.Cvar_Get( "r_mtlRenderScale", "1.0", CVAR_ARCHIVE | CVAR_LATCH );
-	r_rtShadows = ri.Cvar_Get( "r_rtShadows", "0", CVAR_ARCHIVE );
-	r_rtDebugLight = ri.Cvar_Get( "r_rtDebugLight", "", CVAR_CHEAT );
+	// Metal: the engine renders at the internal size; MetalFX upscales it to
+	// the r_mode size. glConfig reports the internal size, so the front end,
+	// 2D drawing and screenshots all work in internal pixels.
 	outputWidth = glConfig.vidWidth;
 	outputHeight = glConfig.vidHeight;
-	upscale = r_mtlUpscale->integer;
+	upscale = metal ? r_mtlUpscale->integer : 0;
 	if ( upscale < 0 || upscale > 3 ) {
 		ri.Printf( PRINT_ALL, "...r_mtlUpscale %d out of range, using 0\n", upscale );
 		upscale = 0;
@@ -276,8 +291,8 @@ void GLimp_Init( void ) {
 
 	name[0] = 0;
 	if ( !MacPlat_InitVideo( outputWidth, outputHeight, glConfig.vidWidth, glConfig.vidHeight, upscale,
-	                         r_fullscreen->integer != 0, name, sizeof( name ) ) ) {
-		ri.Error( ERR_FATAL, "GLimp_Init() - could not create a Metal window\n" );
+	                         r_fullscreen->integer != 0, !metal, name, sizeof( name ) ) ) {
+		ri.Error( ERR_FATAL, "GLimp_Init() - could not create the game window\n" );
 	}
 	video_up = qtrue;
 
@@ -289,17 +304,41 @@ void GLimp_Init( void ) {
 	glConfig.hardwareType = GLHW_GENERIC;
 	glConfig.displayFrequency = 60;
 	glConfig.stereoEnabled = qfalse;
-	glConfig.deviceSupportsGamma = qtrue;   // applied when the frame is presented
 	glConfig.textureCompression = TC_NONE;
-	glConfig.textureEnvAddAvailable = qtrue;
-	glConfig.maxActiveTextures = 2;
 
-	Q_strncpyz( glConfig.vendor_string, "Apple", sizeof( glConfig.vendor_string ) );
-	Q_strncpyz( glConfig.renderer_string, name[0] ? name : "Metal", sizeof( glConfig.renderer_string ) );
-	Q_strncpyz( glConfig.version_string, "Metal (OpenGL 1.1 subset)", sizeof( glConfig.version_string ) );
-	Q_strncpyz( glConfig.extensions_string, (const char *)qglGetString( GL_EXTENSIONS ), sizeof( glConfig.extensions_string ) );
-
-	ri.Printf( PRINT_ALL, "...using GL_ARB_multitexture, GL_EXT_texture_env_add, GL_EXT_compiled_vertex_array (Metal)\n" );
+	if ( metal ) {
+		glConfig.deviceSupportsGamma = qtrue;   // applied when the frame is presented
+		glConfig.textureEnvAddAvailable = qtrue;
+		glConfig.maxActiveTextures = 2;
+		Q_strncpyz( glConfig.vendor_string, "Apple", sizeof( glConfig.vendor_string ) );
+		Q_strncpyz( glConfig.renderer_string, name[0] ? name : "Metal", sizeof( glConfig.renderer_string ) );
+		Q_strncpyz( glConfig.version_string, "Metal (OpenGL 1.1 subset)", sizeof( glConfig.version_string ) );
+		Q_strncpyz( glConfig.extensions_string, (const char *)qglGetString( GL_EXTENSIONS ), sizeof( glConfig.extensions_string ) );
+		ri.Printf( PRINT_ALL, "...using GL_ARB_multitexture, GL_EXT_texture_env_add, GL_EXT_compiled_vertex_array (Metal)\n" );
+	} else {
+		GLint units = 1;
+		// no hardware gamma for an OpenGL window: the renderer brightens in software
+		glConfig.deviceSupportsGamma = qfalse;
+		Q_strncpyz( glConfig.vendor_string, (const char *)qglGetString( GL_VENDOR ), sizeof( glConfig.vendor_string ) );
+		Q_strncpyz( glConfig.renderer_string, (const char *)qglGetString( GL_RENDERER ), sizeof( glConfig.renderer_string ) );
+		Q_strncpyz( glConfig.version_string, (const char *)qglGetString( GL_VERSION ), sizeof( glConfig.version_string ) );
+		Q_strncpyz( glConfig.extensions_string, (const char *)qglGetString( GL_EXTENSIONS ), sizeof( glConfig.extensions_string ) );
+		glConfig.textureEnvAddAvailable = strstr( glConfig.extensions_string, "GL_EXT_texture_env_add" ) ? qtrue : qfalse;
+		if ( qglActiveTextureARB && strstr( glConfig.extensions_string, "GL_ARB_multitexture" ) ) {
+			qglGetIntegerv( GL_MAX_TEXTURE_UNITS_ARB, &units );
+		} else {
+			qglActiveTextureARB = NULL;
+			qglClientActiveTextureARB = NULL;
+			qglMultiTexCoord2fARB = NULL;
+		}
+		glConfig.maxActiveTextures = units;
+		if ( !strstr( glConfig.extensions_string, "GL_EXT_compiled_vertex_array" ) ) {
+			qglLockArraysEXT = NULL;
+			qglUnlockArraysEXT = NULL;
+		}
+		ri.Printf( PRINT_ALL, "...OpenGL: %s, %s, %d texture units\n", glConfig.renderer_string,
+		           glConfig.version_string, units );
+	}
 
 	ri.Cvar_Set( "r_lastValidRenderer", glConfig.renderer_string );
 	MacPlat_SetSwapInterval( r_swapInterval->integer );
@@ -322,11 +361,17 @@ void GLimp_EndFrame( void ) {
 		r_swapInterval->modified = qfalse;
 		MacPlat_SetSwapInterval( r_swapInterval->integer );
 	}
-	MTLR_EndFrame();
+	if ( mac_metalRenderer ) {
+		MTLR_EndFrame();
+	} else {
+		MacPlat_SwapBuffers();
+	}
 }
 
 void GLimp_SetGamma( unsigned char red[256], unsigned char green[256], unsigned char blue[256] ) {
-	MTLR_SetGamma( red, green, blue );
+	if ( mac_metalRenderer ) {
+		MTLR_SetGamma( red, green, blue );
+	}
 }
 
 void GLimp_LogComment( char *comment ) {

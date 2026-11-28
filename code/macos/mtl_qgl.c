@@ -16,6 +16,7 @@ the qgl* function pointers declared in renderer/qgl.h.
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <dlfcn.h>
 
 #include "../renderer/tr_local.h"
 #include "mtl_swift.h"
@@ -980,7 +981,109 @@ static void ResetState( void ) {
 	}
 }
 
+/*
+** r_renderer opengl: the same qgl* pointers bound to Apple's OpenGL framework
+** (legacy profile). The token values in mac_gl.h are OpenGL's own, so the
+** renderer's calls go through unchanged.
+*/
+#define OPENGL_FRAMEWORK "/System/Library/Frameworks/OpenGL.framework/OpenGL"
+
+static void *glLibrary;
+
+#define GL_BIND( name ) \
+	if ( !( *(void **)&qgl##name = dlsym( glLibrary, "gl" #name ) ) ) { \
+		ri.Printf( PRINT_ALL, "QGL_Init: OpenGL has no gl" #name "\n" ); \
+		return qfalse; \
+	}
+
+// extensions: the renderer checks these pointers and does without them
+#define GL_BIND_OPTIONAL( name ) \
+	*(void **)&qgl##name = dlsym( glLibrary, "gl" #name );
+
+static qboolean QGL_InitOpenGL( void ) {
+	glLibrary = dlopen( OPENGL_FRAMEWORK, RTLD_LAZY | RTLD_LOCAL );
+	if ( !glLibrary ) {
+		ri.Printf( PRINT_ALL, "QGL_Init: could not load " OPENGL_FRAMEWORK "\n" );
+		return qfalse;
+	}
+	GL_BIND( AlphaFunc );
+	GL_BIND( ArrayElement );
+	GL_BIND( Begin );
+	GL_BIND( BindTexture );
+	GL_BIND( BlendFunc );
+	GL_BIND( CallList );
+	GL_BIND( Clear );
+	GL_BIND( ClearColor );
+	GL_BIND( ClearDepth );
+	GL_BIND( ClearStencil );
+	GL_BIND( ClipPlane );
+	GL_BIND( Color3f );
+	GL_BIND( Color4f );
+	GL_BIND( Color4ubv );
+	GL_BIND( ColorMask );
+	GL_BIND( ColorPointer );
+	GL_BIND( CullFace );
+	GL_BIND( DeleteTextures );
+	GL_BIND( DepthFunc );
+	GL_BIND( DepthMask );
+	GL_BIND( DepthRange );
+	GL_BIND( Disable );
+	GL_BIND( DisableClientState );
+	GL_BIND( DrawBuffer );
+	GL_BIND( DrawElements );
+	GL_BIND( Enable );
+	GL_BIND( EnableClientState );
+	GL_BIND( End );
+	GL_BIND( Finish );
+	GL_BIND( GetError );
+	GL_BIND( GetIntegerv );
+	GL_BIND( GetString );
+	GL_BIND( LineWidth );
+	GL_BIND( LoadIdentity );
+	GL_BIND( LoadMatrixf );
+	GL_BIND( MatrixMode );
+	GL_BIND( Ortho );
+	GL_BIND( PolygonMode );
+	GL_BIND( PolygonOffset );
+	GL_BIND( PopMatrix );
+	GL_BIND( PushMatrix );
+	GL_BIND( ReadPixels );
+	GL_BIND( Scissor );
+	GL_BIND( ShadeModel );
+	GL_BIND( StencilFunc );
+	GL_BIND( StencilMask );
+	GL_BIND( StencilOp );
+	GL_BIND( TexCoord2f );
+	GL_BIND( TexCoord2fv );
+	GL_BIND( TexCoordPointer );
+	GL_BIND( TexEnvf );
+	GL_BIND( TexImage2D );
+	GL_BIND( TexParameterf );
+	GL_BIND( TexParameterfv );
+	GL_BIND( TexSubImage2D );
+	GL_BIND( Translatef );
+	GL_BIND( Vertex2f );
+	GL_BIND( Vertex3f );
+	GL_BIND( Vertex3fv );
+	GL_BIND( VertexPointer );
+	GL_BIND( Viewport );
+	GL_BIND_OPTIONAL( MultiTexCoord2fARB );
+	GL_BIND_OPTIONAL( ActiveTextureARB );
+	GL_BIND_OPTIONAL( ClientActiveTextureARB );
+	GL_BIND_OPTIONAL( LockArraysEXT );
+	GL_BIND_OPTIONAL( UnlockArraysEXT );
+	return qtrue;
+}
+
+/*
+** dllname "opengl": bind to the OpenGL framework; anything else (NULL): bind
+** to the Metal translation in this file.
+*/
 qboolean QGL_Init( const char *dllname ) {
+	if ( dllname && !Q_stricmp( dllname, "opengl" ) ) {
+		return QGL_InitOpenGL();
+	}
+
 	ResetState();
 
 	qglAlphaFunc = mtl_AlphaFunc;
@@ -1055,6 +1158,10 @@ qboolean QGL_Init( const char *dllname ) {
 }
 
 void QGL_Shutdown( void ) {
+	if ( glLibrary ) {
+		dlclose( glLibrary );
+		glLibrary = NULL;
+	}
 	free( gl.imm );
 	free( gl.texParams );
 	memset( &gl, 0, sizeof( gl ) );

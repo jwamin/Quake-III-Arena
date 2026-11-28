@@ -15,6 +15,7 @@ Metal port: the ray tracing hooks of rb_backend.h (docs/metal-rt.md).
 
 extern cvar_t *r_rtShadows;     // mac_glimp.c
 extern cvar_t *r_rtDebugLight;  // mac_glimp.c: "x y z radius" adds a white test light
+extern qboolean mac_metalRenderer;  // mac_glimp.c: false with r_renderer opengl
 
 /*
 ==============================================================================
@@ -132,6 +133,9 @@ void RB_Backend_WorldLoaded( void ) {
 	int maxVerts = 0, maxIndexes = 0, numVerts = 0, numIndexes = 0;
 	int i;
 
+	if ( !mac_metalRenderer ) {
+		return;     // OpenGL: nothing to trace with
+	}
 	if ( !tr.world || !tr.world->bmodels ) {
 		MTLR_SetWorldGeometry( NULL, 0, NULL, 0 );
 		return;

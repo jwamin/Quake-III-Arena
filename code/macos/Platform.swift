@@ -12,6 +12,7 @@
 import AppKit
 import CoreGraphics
 import QuartzCore
+import OpenGL.GL
 
 /// The content view: hosts the CAMetalLayer and keeps its drawable size in pixels.
 private final class GameView: NSView {
@@ -51,6 +52,35 @@ private final class GameView: NSView {
     }
 }
 
+/// r_renderer opengl: an OpenGL (legacy profile) view. The context renders at
+/// the engine's size and is scaled to the view (CGL surface backing size).
+private final class GLGameView: NSOpenGLView {
+    init?(frame: NSRect, renderWidth: Int, renderHeight: Int) {
+        let attrs: [NSOpenGLPixelFormatAttribute] = [
+            UInt32(NSOpenGLPFAOpenGLProfile), UInt32(NSOpenGLProfileVersionLegacy),
+            UInt32(NSOpenGLPFADoubleBuffer), UInt32(NSOpenGLPFAAccelerated),
+            UInt32(NSOpenGLPFAColorSize), 24, UInt32(NSOpenGLPFAAlphaSize), 8,
+            UInt32(NSOpenGLPFADepthSize), 24, UInt32(NSOpenGLPFAStencilSize), 8,
+            0,
+        ]
+        guard let format = NSOpenGLPixelFormat(attributes: attrs) else { return nil }
+        super.init(frame: frame, pixelFormat: format)
+        wantsBestResolutionOpenGLSurface = false
+        guard let context = openGLContext, let cgl = context.cglContextObj else { return nil }
+        context.makeCurrentContext()
+        var size: [GLint] = [GLint(renderWidth), GLint(renderHeight)]
+        CGLSetParameter(cgl, kCGLCPSurfaceBackingSize, &size)
+        CGLEnable(cgl, kCGLCESurfaceBackingSize)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override var acceptsFirstResponder: Bool { true }
+    override var isOpaque: Bool { true }
+    override func keyDown(with event: NSEvent) {}
+    override func keyUp(with event: NSEvent) {}
+}
+
 /// A borderless window cannot become key by default, which would leave the
 /// fullscreen window without keyboard focus or a mouse grab.
 private final class GameWindow: NSWindow {
@@ -62,9 +92,11 @@ final class Platform: NSObject, NSWindowDelegate {
     static private(set) var shared: Platform?
 
     private let window: NSWindow
-    private let view: GameView
+    private let view: NSView
+    private let metalView: GameView?
+    private let glView: GLGameView?
     private let fullscreen: Bool
-    let renderer: MetalRenderer
+    let renderer: MetalRenderer?     // nil with r_renderer opengl
 
     private var wantGrab = false
     private var grabbed = false
@@ -75,7 +107,12 @@ final class Platform: NSObject, NSWindowDelegate {
 
     // MARK: Setup
 
-    init(width: Int, height: Int, renderWidth: Int, renderHeight: Int, upscale: Int, fullscreen: Bool) throws {
+    enum PlatformError: Error {
+        case noOpenGL
+    }
+
+    init(width: Int, height: Int, renderWidth: Int, renderHeight: Int, upscale: Int, fullscreen: Bool,
+         opengl: Bool) throws {
         Platform.prepareApplication()
         self.fullscreen = fullscreen
 
@@ -101,18 +138,34 @@ final class Platform: NSObject, NSWindowDelegate {
             window.center()
         }
 
-        view = GameView(frame: NSRect(origin: .zero, size: contentRect.size))
+        let frame = NSRect(origin: .zero, size: contentRect.size)
+        if opengl {
+            // the engine renders at the r_mode size; no MetalFX
+            guard let gl = GLGameView(frame: frame, renderWidth: width, renderHeight: height) else {
+                throw PlatformError.noOpenGL
+            }
+            glView = gl
+            metalView = nil
+            view = gl
+            renderer = nil
+        } else {
+            let mv = GameView(frame: frame)
+            mv.metalLayer.device = MTLCreateSystemDefaultDevice()
+            metalView = mv
+            glView = nil
+            view = mv
+            renderer = try MetalRenderer(layer: mv.metalLayer, width: renderWidth, height: renderHeight,
+                                         outputWidth: width, outputHeight: height,
+                                         upscale: MetalRenderer.Upscale(rawValue: upscale) ?? .off)
+        }
         window.contentView = view
-        view.metalLayer.device = MTLCreateSystemDefaultDevice()
-        renderer = try MetalRenderer(layer: view.metalLayer, width: renderWidth, height: renderHeight,
-                                     outputWidth: width, outputHeight: height,
-                                     upscale: MetalRenderer.Upscale(rawValue: upscale) ?? .off)
 
         super.init()
         window.delegate = self
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
-        view.updateDrawableSize()
+        metalView?.updateDrawableSize()
+        glView?.openGLContext?.makeCurrentContext()
         setFullscreenPresentation(true)
 
         // Switching apps (Cmd-Tab, clicking another app) must hand the mouse,
@@ -158,12 +211,37 @@ final class Platform: NSObject, NSWindowDelegate {
         appObservers.removeAll()
         applyGrab(false)
         releaseAllKeys()
-        renderer.shutdown()
+        renderer?.shutdown()
+        if glView != nil {
+            NSOpenGLContext.clearCurrentContext()
+        }
         setFullscreenPresentation(false)
         window.delegate = nil
         window.orderOut(nil)
         window.close()
         Platform.shared = nil
+    }
+
+    // MARK: OpenGL
+
+    func swapBuffers() {
+        glView?.openGLContext?.flushBuffer()
+    }
+
+    func setSwapInterval(_ interval: Int) {
+        if let renderer {
+            renderer.swapInterval = interval
+        } else if let context = glView?.openGLContext {
+            var value = GLint(interval)
+            context.setValues(&value, for: .swapInterval)
+        }
+    }
+
+    var rendererName: String {
+        if let renderer {
+            return "Metal: \(renderer.device.name)"
+        }
+        return "OpenGL"
     }
 
     // MARK: Focus
@@ -336,19 +414,19 @@ final class Platform: NSObject, NSWindowDelegate {
 
 @_cdecl("MacPlat_InitVideo")
 public func MacPlat_InitVideo(_ width: Int32, _ height: Int32, _ renderWidth: Int32, _ renderHeight: Int32,
-                              _ upscale: Int32, _ fullscreen: Bool,
+                              _ upscale: Int32, _ fullscreen: Bool, _ opengl: Bool,
                               _ rendererName: UnsafeMutablePointer<CChar>?, _ nameSize: Int32) -> Bool {
     Platform.shared?.shutdown()
     do {
         let platform = try Platform(width: Int(width), height: Int(height), renderWidth: Int(renderWidth),
-                                    renderHeight: Int(renderHeight), upscale: Int(upscale), fullscreen: fullscreen)
+                                    renderHeight: Int(renderHeight), upscale: Int(upscale), fullscreen: fullscreen,
+                                    opengl: opengl)
         if let rendererName, nameSize > 0 {
-            let name = "Metal: \(platform.renderer.device.name)"
-            _ = name.withCString { strlcpy(rendererName, $0, Int(nameSize)) }
+            _ = platform.rendererName.withCString { strlcpy(rendererName, $0, Int(nameSize)) }
         }
         return true
     } catch {
-        MacPrint("Metal initialisation failed: \(error)\n")
+        MacPrint("\(opengl ? "OpenGL" : "Metal") initialisation failed: \(error)\n")
         return false
     }
 }
@@ -370,5 +448,10 @@ public func MacPlat_GrabMouse(_ grab: Bool) {
 
 @_cdecl("MacPlat_SetSwapInterval")
 public func MacPlat_SetSwapInterval(_ interval: Int32) {
-    Platform.shared?.renderer.swapInterval = Int(interval)
+    Platform.shared?.setSwapInterval(Int(interval))
+}
+
+@_cdecl("MacPlat_SwapBuffers")
+public func MacPlat_SwapBuffers() {
+    Platform.shared?.swapBuffers()
 }
