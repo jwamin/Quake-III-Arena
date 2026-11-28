@@ -465,7 +465,7 @@ void *Hunk_AllocDebug( int size, ha_pref preference, char *label, char *file, in
 void *Hunk_Alloc( int size, ha_pref preference );
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) || ( defined(__APPLE__) && !defined(MACOS_X) )
 // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=371
 // custom Snd_Memset implementation for glibc memset bug workaround
 void Snd_Memset (void* dest, const int val, const size_t count);

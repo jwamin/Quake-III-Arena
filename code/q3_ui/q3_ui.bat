@@ -50,6 +50,7 @@ lcc -DQ3_VM -S -Wf-target=bytecode -Wf-g -I..\..\cgame -I..\..\game -I..\..\q3_u
 lcc -DQ3_VM -S -Wf-target=bytecode -Wf-g -I..\..\cgame -I..\..\game -I..\..\q3_ui ../ui_sound.c
 @if errorlevel 1 goto quit
 lcc -DQ3_VM -S -Wf-target=bytecode -Wf-g -I..\..\cgame -I..\..\game -I..\..\q3_ui ../ui_network.c
+lcc -DQ3_VM -S -Wf-target=bytecode -Wf-g -I..\..\cgame -I..\..\game -I..\..\q3_ui ../ui_metal.c
 @if errorlevel 1 goto quit
 lcc -DQ3_VM -S -Wf-target=bytecode -Wf-g -I..\..\cgame -I..\..\game -I..\..\q3_ui ../ui_playermodel.c
 @if errorlevel 1 goto quit

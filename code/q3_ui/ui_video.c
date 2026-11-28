@@ -278,6 +278,9 @@ typedef struct {
 	menulist_s  	colordepth;
 	menulist_s  	geometry;
 	menulist_s  	filter;
+	menulist_s  	renderer;		// Metal build: r_renderer, in place of driver
+	menutext_s		metalTab;
+	menutext_s		rtTab;
 	menutext_s		driverinfo;
 
 	menubitmap_s	apply;
@@ -296,7 +299,23 @@ typedef struct
 	int filter;
 	int driver;
 	qboolean extensions;
+	int renderer;
 } InitialVideoOptions_s;
+
+/*
+** r_mode -1 (r_customwidth x r_customheight) is offered as an extra entry
+** after the fixed modes, so the menu does not replace a custom mode.
+*/
+#define NUM_FIXED_MODES	12
+static qboolean	s_customMode;
+static char		s_customModeName[32];
+
+static int GraphicsOptions_ModeToCvar( int curvalue ) {
+	if ( s_customMode && curvalue == NUM_FIXED_MODES ) {
+		return -1;
+	}
+	return curvalue;
+}
 
 static InitialVideoOptions_s	s_ivo;
 static graphicsoptions_t		s_graphicsoptions;	
@@ -339,6 +358,7 @@ static void GraphicsOptions_GetInitialVideo( void )
 	s_ivo.geometry    = s_graphicsoptions.geometry.curvalue;
 	s_ivo.filter      = s_graphicsoptions.filter.curvalue;
 	s_ivo.texturebits = s_graphicsoptions.texturebits.curvalue;
+	s_ivo.renderer    = s_graphicsoptions.renderer.curvalue;
 }
 
 /*
@@ -454,6 +474,10 @@ static void GraphicsOptions_UpdateMenuItems( void )
 	{
 		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
 	}
+	if ( s_ivo.renderer != s_graphicsoptions.renderer.curvalue )
+	{
+		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
+	}
 
 	GraphicsOptions_CheckConfig();
 }	
@@ -482,9 +506,16 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 	}
 	trap_Cvar_SetValue( "r_picmip", 3 - s_graphicsoptions.tq.curvalue );
 	trap_Cvar_SetValue( "r_allowExtensions", s_graphicsoptions.allow_extensions.curvalue );
-	trap_Cvar_SetValue( "r_mode", s_graphicsoptions.mode.curvalue );
+	trap_Cvar_SetValue( "r_mode", GraphicsOptions_ModeToCvar( s_graphicsoptions.mode.curvalue ) );
 	trap_Cvar_SetValue( "r_fullscreen", s_graphicsoptions.fs.curvalue );
-	trap_Cvar_Set( "r_glDriver", ( char * ) s_drivers[s_graphicsoptions.driver.curvalue] );
+	if ( UI_MetalTabsAvailable() )
+	{
+		trap_Cvar_Set( "r_renderer", s_graphicsoptions.renderer.curvalue ? "opengl" : "metal" );
+	}
+	else
+	{
+		trap_Cvar_Set( "r_glDriver", ( char * ) s_drivers[s_graphicsoptions.driver.curvalue] );
+	}
 	switch ( s_graphicsoptions.colordepth.curvalue )
 	{
 	case 0:
@@ -528,6 +559,7 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 	{
 		trap_Cvar_Set( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST" );
 	}
+
 
 	trap_Cmd_ExecuteText( EXEC_APPEND, "vid_restart\n" );
 }
@@ -634,8 +666,17 @@ static void GraphicsOptions_SetMenuItems( void )
 	s_graphicsoptions.mode.curvalue = trap_Cvar_VariableValue( "r_mode" );
 	if ( s_graphicsoptions.mode.curvalue < 0 )
 	{
-		s_graphicsoptions.mode.curvalue = 3;
+		s_graphicsoptions.mode.curvalue = s_customMode ? NUM_FIXED_MODES : 3;
 	}
+
+	if ( UI_MetalTabsAvailable() )
+	{
+		char	buf[16];
+
+		trap_Cvar_VariableStringBuffer( "r_renderer", buf, sizeof( buf ) );
+		s_graphicsoptions.renderer.curvalue = Q_stricmp( buf, "opengl" ) == 0;
+	}
+
 	s_graphicsoptions.fs.curvalue = trap_Cvar_VariableValue("r_fullscreen");
 	s_graphicsoptions.allow_extensions.curvalue = trap_Cvar_VariableValue("r_allowExtensions");
 	s_graphicsoptions.tq.curvalue = 3-trap_Cvar_VariableValue( "r_picmip");
@@ -719,6 +760,13 @@ GraphicsOptions_MenuInit
 */
 void GraphicsOptions_MenuInit( void )
 {
+	static const char *renderer_names[] =
+	{
+		"Metal",
+		"OpenGL",
+		0
+	};
+
 	static const char *s_driver_names[] =
 	{
 		"Default",
@@ -773,6 +821,7 @@ void GraphicsOptions_MenuInit( void )
 		"1600x1200",
 		"2048x1536",
 		"856x480 wide screen",
+		0,		// custom mode (r_mode -1), filled in below
 		0
 	};
 	static const char *filter_names[] =
@@ -799,6 +848,18 @@ void GraphicsOptions_MenuInit( void )
 
 	// zero set all our globals
 	memset( &s_graphicsoptions, 0 ,sizeof(graphicsoptions_t) );
+
+	s_customMode = ( trap_Cvar_VariableValue( "r_mode" ) == -1 );
+	if ( s_customMode )
+	{
+		Com_sprintf( s_customModeName, sizeof( s_customModeName ), "Custom %dx%d",
+			(int)trap_Cvar_VariableValue( "r_customwidth" ), (int)trap_Cvar_VariableValue( "r_customheight" ) );
+		resolutions[NUM_FIXED_MODES] = s_customModeName;
+	}
+	else
+	{
+		resolutions[NUM_FIXED_MODES] = 0;
+	}
 
 	GraphicsOptions_Cache();
 
@@ -887,6 +948,14 @@ void GraphicsOptions_MenuInit( void )
 	s_graphicsoptions.driver.generic.y     = y;
 	s_graphicsoptions.driver.itemnames     = s_driver_names;
 	s_graphicsoptions.driver.curvalue      = (uis.glconfig.driverType == GLDRV_VOODOO);
+
+	// Metal build: choose the renderer here instead (same row; also on the METAL tab)
+	s_graphicsoptions.renderer.generic.type  = MTYPE_SPINCONTROL;
+	s_graphicsoptions.renderer.generic.name  = "Renderer:";
+	s_graphicsoptions.renderer.generic.flags = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_graphicsoptions.renderer.generic.x     = 400;
+	s_graphicsoptions.renderer.generic.y     = y;
+	s_graphicsoptions.renderer.itemnames     = renderer_names;
 	y += BIGCHAR_HEIGHT+2;
 
 	// references/modifies "r_allowExtensions"
@@ -1014,9 +1083,13 @@ void GraphicsOptions_MenuInit( void )
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.display );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.sound );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.network );
+	UI_MetalTabs_Add( &s_graphicsoptions.menu, &s_graphicsoptions.metalTab, &s_graphicsoptions.rtTab );
 
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.list );
-	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.driver );
+	if ( UI_MetalTabsAvailable() )
+		Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.renderer );
+	else
+		Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.driver );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.allow_extensions );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.mode );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.colordepth );

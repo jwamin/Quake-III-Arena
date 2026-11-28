@@ -24,14 +24,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/q_shared.h"
 #include "qcommon.h"
 #include <setjmp.h>
-#ifdef __linux__
-#include <netinet/in.h>
-#else
-#if defined(MACOS_X)
-#include <netinet/in.h>
-#else
+#ifdef _WIN32
 #include <winsock.h>
-#endif
+#else
+#include <netinet/in.h>
 #endif
 
 int demo_protocols[] =
@@ -2816,7 +2812,7 @@ void Com_Shutdown (void) {
 }
 
 #if !( defined __VECTORC )
-#if !( defined __linux__ || defined __FreeBSD__ )  // r010123 - include FreeBSD 
+#if !( defined __linux__ || defined __FreeBSD__ || ( defined __APPLE__ && !defined MACOS_X ) )  // r010123 - include FreeBSD; unix_common provides these on SDL macOS
 #if ((!id386) && (!defined __i386__)) // rcg010212 - for PPC
 
 void Com_Memcpy (void* dest, const void* src, const size_t count)

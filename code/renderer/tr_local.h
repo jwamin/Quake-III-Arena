@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../qcommon/qcommon.h"
 #include "tr_public.h"
 #include "qgl.h"
+#include "rb_backend.h"
 
 #define GL_INDEX_TYPE		GL_UNSIGNED_INT
 typedef unsigned int glIndex_t;
@@ -1046,7 +1047,8 @@ extern	cvar_t	*r_offsetFactor;
 extern	cvar_t	*r_offsetUnits;
 
 extern	cvar_t	*r_fullbright;					// avoid lightmap pass
-extern	cvar_t	*r_lightmap;					// render lightmaps only
+extern	cvar_t	*r_lightmap;
+extern	cvar_t	*r_clay;				// lighting only: surfaces drawn white (tr_shade.c)					// render lightmaps only
 extern	cvar_t	*r_vertexLight;					// vertex lighting mode for better performance
 extern	cvar_t	*r_uiFullScreen;				// ui is running fullscreen
 

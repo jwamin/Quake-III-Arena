@@ -526,6 +526,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	drawSurf_t		*drawSurf;
 	int				oldSort;
 	float			originalTime;
+	qboolean		opaqueDone;
 #ifdef __MACOS__
 	int				macEventTime;
 
@@ -551,6 +552,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	oldDlighted = qfalse;
 	oldSort = -1;
 	depthRange = qfalse;
+	opaqueDone = qfalse;
 
 	backEnd.pc.c_surfaces += numDrawSurfs;
 
@@ -580,6 +582,12 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 				}
 #endif
 				RB_EndSurface();
+			}
+			// surfaces are sorted by shader sort: the first non-opaque one
+			// ends the opaque part of the view
+			if ( !opaqueDone && shader->sort > SS_OPAQUE ) {
+				opaqueDone = qtrue;
+				RB_Backend_OpaqueDone();
 			}
 			RB_BeginSurface( shader, fogNum );
 			oldShader = shader;
@@ -648,6 +656,9 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	// draw the contents of the last shader batch
 	if (oldShader != NULL) {
 		RB_EndSurface();
+	}
+	if ( !opaqueDone ) {
+		RB_Backend_OpaqueDone();
 	}
 
 	// go back to the world modelview matrix

@@ -731,6 +731,15 @@ void UI_NetworkOptionsMenu_Cache( void );
 void UI_NetworkOptionsMenu( void );
 
 //
+// ui_metal.c: METAL and RAY TRACING System Setup pages (Metal build only)
+//
+qboolean UI_MetalTabsAvailable( void );
+qboolean UI_MetalRendererActive( void );
+void UI_MetalTabs_Add( menuframework_s *menu, menutext_s *metal, menutext_s *rt );
+void UI_MetalOptionsMenu( void );
+void UI_RayTracingOptionsMenu( void );
+
+//
 // ui_gameinfo.c
 //
 typedef enum {

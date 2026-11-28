@@ -17,6 +17,7 @@ ui_options
 ui_display
 ui_sound
 ui_network
+ui_metal
 ui_playermodel
 ui_players
 ui_playersettings

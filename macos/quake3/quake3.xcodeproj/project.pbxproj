@@ -1,0 +1,628 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 110;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		08EAC36F30B5E04500C18848 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08EAC35830B5E04400C18848 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 08EAC35F30B5E04400C18848;
+			remoteInfo = quake3;
+		};
+		08EAC37930B5E04500C18848 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08EAC35830B5E04400C18848 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 08EAC35F30B5E04400C18848;
+			remoteInfo = quake3;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		08EAC36030B5E04400C18848 /* quake3.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = quake3.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		08EAC36E30B5E04500C18848 /* quake3Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = quake3Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		08EAC37830B5E04500C18848 /* quake3UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = quake3UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		08EAC36230B5E04400C18848 /* quake3 */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = quake3;
+			sourceTree = "<group>";
+		};
+		08EAC37130B5E04500C18848 /* quake3Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = quake3Tests;
+			sourceTree = "<group>";
+		};
+		08EAC37B30B5E04500C18848 /* quake3UITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = quake3UITests;
+			sourceTree = "<group>";
+		};
+		0A51E0F330B6000100C18848 /* Metal port (code/macos) */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = "Metal port (code/macos)";
+			path = ../../code/macos;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		08EAC35D30B5E04400C18848 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		08EAC36B30B5E04500C18848 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		08EAC37530B5E04500C18848 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		08EAC35730B5E04400C18848 = {
+			isa = PBXGroup;
+			children = (
+				08EAC36230B5E04400C18848 /* quake3 */,
+				0A51E0F330B6000100C18848 /* Metal port (code/macos) */,
+				08EAC37130B5E04500C18848 /* quake3Tests */,
+				08EAC37B30B5E04500C18848 /* quake3UITests */,
+				08EAC36130B5E04400C18848 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		08EAC36130B5E04400C18848 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				08EAC36030B5E04400C18848 /* quake3.app */,
+				08EAC36E30B5E04500C18848 /* quake3Tests.xctest */,
+				08EAC37830B5E04500C18848 /* quake3UITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		08EAC35F30B5E04400C18848 /* quake3 */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 08EAC38030B5E04500C18848 /* Build configuration list for PBXNativeTarget "quake3" */;
+			buildPhases = (
+				0A51E0F130B6000100C18848 /* Build Engine */,
+				08EAC35C30B5E04400C18848 /* Sources */,
+				08EAC35D30B5E04400C18848 /* Frameworks */,
+				08EAC35E30B5E04400C18848 /* Resources */,
+				0A51E0F430B6000100C18848 /* Build UI pk3 */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				08EAC36230B5E04400C18848 /* quake3 */,
+				0A51E0F330B6000100C18848 /* Metal port (code/macos) */,
+			);
+			name = quake3;
+			productName = quake3;
+			productReference = 08EAC36030B5E04400C18848 /* quake3.app */;
+			productType = "com.apple.product-type.application";
+		};
+		08EAC36D30B5E04500C18848 /* quake3Tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 08EAC38330B5E04500C18848 /* Build configuration list for PBXNativeTarget "quake3Tests" */;
+			buildPhases = (
+				08EAC36A30B5E04500C18848 /* Sources */,
+				08EAC36B30B5E04500C18848 /* Frameworks */,
+				08EAC36C30B5E04500C18848 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				08EAC37030B5E04500C18848 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				08EAC37130B5E04500C18848 /* quake3Tests */,
+			);
+			name = quake3Tests;
+			productName = quake3Tests;
+			productReference = 08EAC36E30B5E04500C18848 /* quake3Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		08EAC37730B5E04500C18848 /* quake3UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 08EAC38630B5E04500C18848 /* Build configuration list for PBXNativeTarget "quake3UITests" */;
+			buildPhases = (
+				08EAC37430B5E04500C18848 /* Sources */,
+				08EAC37530B5E04500C18848 /* Frameworks */,
+				08EAC37630B5E04500C18848 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				08EAC37A30B5E04500C18848 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				08EAC37B30B5E04500C18848 /* quake3UITests */,
+			);
+			name = quake3UITests;
+			productName = quake3UITests;
+			productReference = 08EAC37830B5E04500C18848 /* quake3UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		08EAC35830B5E04400C18848 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2710;
+				LastUpgradeCheck = 2710;
+				TargetAttributes = {
+					08EAC35F30B5E04400C18848 = {
+						CreatedOnToolsVersion = 27.1;
+					};
+					08EAC36D30B5E04500C18848 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = 08EAC35F30B5E04400C18848;
+					};
+					08EAC37730B5E04500C18848 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = 08EAC35F30B5E04400C18848;
+					};
+				};
+			};
+			buildConfigurationList = 08EAC35B30B5E04400C18848 /* Build configuration list for PBXProject "quake3" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 08EAC35730B5E04400C18848;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 08EAC36130B5E04400C18848 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				08EAC35F30B5E04400C18848 /* quake3 */,
+				08EAC36D30B5E04500C18848 /* quake3Tests */,
+				08EAC37730B5E04500C18848 /* quake3UITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		08EAC35E30B5E04400C18848 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		08EAC36C30B5E04500C18848 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		08EAC37630B5E04500C18848 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0A51E0F130B6000100C18848 /* Build Engine */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			name = "Build Engine";
+			shellPath = /bin/sh;
+			shellScript = (
+				"\"$SRCROOT/scripts/build_engine.sh\"",
+				"",
+			);
+		};
+		0A51E0F430B6000100C18848 /* Build UI pk3 */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			name = "Build UI pk3";
+			shellPath = /bin/sh;
+			shellScript = (
+				"\"$SRCROOT/scripts/build_ui_pk3.sh\"",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		08EAC35C30B5E04400C18848 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		08EAC36A30B5E04500C18848 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+		08EAC37430B5E04500C18848 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		08EAC37030B5E04500C18848 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 08EAC35F30B5E04400C18848 /* quake3 */;
+			targetProxy = 08EAC36F30B5E04500C18848 /* PBXContainerItemProxy */;
+		};
+		08EAC37A30B5E04500C18848 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 08EAC35F30B5E04400C18848 /* quake3 */;
+			targetProxy = 08EAC37930B5E04500C18848 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		08EAC37E30B5E04500C18848 /* Debug configuration for PBXProject "quake3" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		08EAC37F30B5E04500C18848 /* Release configuration for PBXProject "quake3" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		08EAC38130B5E04500C18848 /* Debug configuration for PBXNativeTarget "quake3" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = quake3.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GCC_C_LANGUAGE_STANDARD = gnu89;
+				GCC_NO_COMMON_BLOCKS = NO;
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainNibFile = MainMenu;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				INFOPLIST_KEY_NSViewGestureRecognizerIsExclusive = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-fsigned-char",
+					"-fno-strict-aliasing",
+					"-DC_ONLY",
+					"-DQ3_NO_JIT",
+					"-DUSE_METAL",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(DERIVED_FILE_DIR)/engine/libquake3-engine.a",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "quake3/quake3-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		08EAC38230B5E04500C18848 /* Release configuration for PBXNativeTarget "quake3" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = quake3.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GCC_C_LANGUAGE_STANDARD = gnu89;
+				GCC_NO_COMMON_BLOCKS = NO;
+				GCC_WARN_INHIBIT_ALL_WARNINGS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMainNibFile = MainMenu;
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				INFOPLIST_KEY_NSViewGestureRecognizerIsExclusive = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-fsigned-char",
+					"-fno-strict-aliasing",
+					"-DC_ONLY",
+					"-DQ3_NO_JIT",
+					"-DUSE_METAL",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(DERIVED_FILE_DIR)/engine/libquake3-engine.a",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "quake3/quake3-Bridging-Header.h";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		08EAC38430B5E04500C18848 /* Debug configuration for PBXNativeTarget "quake3Tests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/quake3.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/quake3";
+			};
+			name = Debug;
+		};
+		08EAC38530B5E04500C18848 /* Release configuration for PBXNativeTarget "quake3Tests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/quake3.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/quake3";
+			};
+			name = Release;
+		};
+		08EAC38730B5E04500C18848 /* Debug configuration for PBXNativeTarget "quake3UITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = quake3;
+			};
+			name = Debug;
+		};
+		08EAC38830B5E04500C18848 /* Release configuration for PBXNativeTarget "quake3UITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3C42F7N9CQ;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jossy.quake3UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = quake3;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		08EAC35B30B5E04400C18848 /* Build configuration list for PBXProject "quake3" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				08EAC37E30B5E04500C18848 /* Debug configuration for PBXProject "quake3" */,
+				08EAC37F30B5E04500C18848 /* Release configuration for PBXProject "quake3" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		08EAC38030B5E04500C18848 /* Build configuration list for PBXNativeTarget "quake3" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				08EAC38130B5E04500C18848 /* Debug configuration for PBXNativeTarget "quake3" */,
+				08EAC38230B5E04500C18848 /* Release configuration for PBXNativeTarget "quake3" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		08EAC38330B5E04500C18848 /* Build configuration list for PBXNativeTarget "quake3Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				08EAC38430B5E04500C18848 /* Debug configuration for PBXNativeTarget "quake3Tests" */,
+				08EAC38530B5E04500C18848 /* Release configuration for PBXNativeTarget "quake3Tests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		08EAC38630B5E04500C18848 /* Build configuration list for PBXNativeTarget "quake3UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				08EAC38730B5E04500C18848 /* Debug configuration for PBXNativeTarget "quake3UITests" */,
+				08EAC38830B5E04500C18848 /* Release configuration for PBXNativeTarget "quake3UITests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 08EAC35830B5E04400C18848 /* Project object */;
+	validationLevel = 1;
+}

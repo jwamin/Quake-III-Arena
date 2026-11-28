@@ -1236,7 +1236,18 @@ void Sys_ParseArgs( int argc, char* argv[] ) {
 #include "../client/client.h"
 extern clientStatic_t cls;
 
+#ifdef Q3_APP
+// macOS app target (macos/quake3): AppKit owns process startup and calls
+// Q3_Main once the app has launched. It does not return.
+void Q3_RequestQuit( void )
+{
+  Cbuf_AddText( "quit\n" );
+}
+
+int Q3_Main ( int argc, char* argv[] )
+#else
 int main ( int argc, char* argv[] )
+#endif
 {
   // int 	oldtime, newtime; // bk001204 - unused
   int   len, i;

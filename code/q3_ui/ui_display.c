@@ -56,6 +56,8 @@ typedef struct {
 	menutext_s		display;
 	menutext_s		sound;
 	menutext_s		network;
+	menutext_s		metalTab;		// METAL and RAY TRACING (ui_metal.c)
+	menutext_s		rtTab;
 
 	menuslider_s	brightness;
 	menuslider_s	screensize;
@@ -231,6 +233,7 @@ static void UI_DisplayOptionsMenu_Init( void ) {
 	Menu_AddItem( &displayOptionsInfo.menu, ( void * ) &displayOptionsInfo.display );
 	Menu_AddItem( &displayOptionsInfo.menu, ( void * ) &displayOptionsInfo.sound );
 	Menu_AddItem( &displayOptionsInfo.menu, ( void * ) &displayOptionsInfo.network );
+	UI_MetalTabs_Add( &displayOptionsInfo.menu, &displayOptionsInfo.metalTab, &displayOptionsInfo.rtTab );
 	Menu_AddItem( &displayOptionsInfo.menu, ( void * ) &displayOptionsInfo.brightness );
 	Menu_AddItem( &displayOptionsInfo.menu, ( void * ) &displayOptionsInfo.screensize );
 	Menu_AddItem( &displayOptionsInfo.menu, ( void * ) &displayOptionsInfo.back );

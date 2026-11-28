@@ -333,11 +333,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 		else
 		{
 			R_SyncRenderThread();
-			qglEnable( GL_STENCIL_TEST );
-			qglStencilMask( ~0U );
-			qglClearStencil( 0U );
-			qglStencilFunc( GL_ALWAYS, 0U, ~0U );
-			qglStencilOp( GL_KEEP, GL_INCR, GL_INCR );
+			RB_Backend_SetOverdrawMeasure( qtrue );
 		}
 		r_measureOverdraw->modified = qfalse;
 	}
@@ -346,7 +342,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 		// this is only reached if it was on and is now off
 		if ( r_measureOverdraw->modified ) {
 			R_SyncRenderThread();
-			qglDisable( GL_STENCIL_TEST );
+			RB_Backend_SetOverdrawMeasure( qfalse );
 		}
 		r_measureOverdraw->modified = qfalse;
 	}
@@ -375,7 +371,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
         int	err;
 
 		R_SyncRenderThread();
-        if ( ( err = qglGetError() ) != GL_NO_ERROR ) {
+        if ( ( err = RB_Backend_GetError() ) != 0 ) {
             ri.Error( ERR_FATAL, "RE_BeginFrame() - glGetError() failed (0x%x)!\n", err );
         }
     }
@@ -391,9 +387,9 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 
 	if ( glConfig.stereoEnabled ) {
 		if ( stereoFrame == STEREO_LEFT ) {
-			cmd->buffer = (int)GL_BACK_LEFT;
+			cmd->buffer = (int)RB_DRAWBUFFER_BACK_LEFT;
 		} else if ( stereoFrame == STEREO_RIGHT ) {
-			cmd->buffer = (int)GL_BACK_RIGHT;
+			cmd->buffer = (int)RB_DRAWBUFFER_BACK_RIGHT;
 		} else {
 			ri.Error( ERR_FATAL, "RE_BeginFrame: Stereo is enabled, but stereoFrame was %i", stereoFrame );
 		}
@@ -402,9 +398,9 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 			ri.Error( ERR_FATAL, "RE_BeginFrame: Stereo is disabled, but stereoFrame was %i", stereoFrame );
 		}
 		if ( !Q_stricmp( r_drawBuffer->string, "GL_FRONT" ) ) {
-			cmd->buffer = (int)GL_FRONT;
+			cmd->buffer = (int)RB_DRAWBUFFER_FRONT;
 		} else {
-			cmd->buffer = (int)GL_BACK;
+			cmd->buffer = (int)RB_DRAWBUFFER_BACK;
 		}
 	}
 }

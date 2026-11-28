@@ -214,8 +214,51 @@ R_BindAnimatedImage
 
 =================
 */
+/*
+** Clay mode (r_clay): every surface plain grey, all lighting kept (lightmaps,
+** vertex and entity lighting, dynamic lights). Decided per shader stage:
+**   opaque stage          its non-lightmap textures are bound as grey
+**   multiply blend stage  (DST_COLOR,ZERO / ZERO,SRC_COLOR) with a
+**                         non-lightmap texture: skipped (left out, the
+**                         lightmap underneath is the clay look)
+**   anything else         drawn as usual: lightmap stages, additive and
+**                         alpha blended effects, alpha tested surfaces
+** Sky and 2D drawing are left alone.
+*/
+typedef enum { CLAY_NORMAL, CLAY_WHITE, CLAY_SKIP } clayStage_t;
+
+static qboolean	s_clayWhite;	// R_BindAnimatedImage binds clay grey for non-lightmaps
+
+static clayStage_t RB_ClayStage( const shaderStage_t *pStage ) {
+	unsigned	bits = pStage->stateBits;
+	unsigned	src = bits & GLS_SRCBLEND_BITS, dst = bits & GLS_DSTBLEND_BITS;
+	qboolean	lightmap = pStage->bundle[0].isLightmap || pStage->bundle[1].isLightmap;
+
+	if ( !r_clay->integer || tess.shader->isSky || backEnd.projection2D ) {
+		return CLAY_NORMAL;
+	}
+	if ( bits & GLS_ATEST_BITS ) {
+		return CLAY_NORMAL;			// the texture's alpha is the shape
+	}
+	if ( !src && !dst ) {
+		return CLAY_WHITE;
+	}
+	if ( !lightmap && ( ( src == GLS_SRCBLEND_DST_COLOR && dst == GLS_DSTBLEND_ZERO )
+		|| ( src == GLS_SRCBLEND_ZERO && dst == GLS_DSTBLEND_SRC_COLOR ) ) ) {
+		return CLAY_SKIP;
+	}
+	return CLAY_NORMAL;
+}
+
 static void R_BindAnimatedImage( textureBundle_t *bundle ) {
 	int		index;
+
+	if ( s_clayWhite && !bundle->isLightmap ) {
+		// mid grey (1.0 in Q3's overbright lighting space): plain white
+		// clips once the lightmap is applied
+		GL_Bind( tr.identityLightImage );
+		return;
+	}
 
 	if ( bundle->isVideoMap ) {
 		ri.CIN_RunCinematic(bundle->videoMapHandle);
@@ -956,6 +999,17 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			break;
 		}
 
+		switch ( RB_ClayStage( pStage ) ) {
+		case CLAY_SKIP:
+			continue;
+		case CLAY_WHITE:
+			s_clayWhite = qtrue;
+			break;
+		default:
+			s_clayWhite = qfalse;
+			break;
+		}
+
 		ComputeColors( pStage );
 		ComputeTexCoords( pStage );
 
@@ -1002,6 +1056,7 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			break;
 		}
 	}
+	s_clayWhite = qfalse;
 }
 
 
@@ -1089,7 +1144,7 @@ void RB_StageIteratorGeneric( void )
 	// now do any dynamic lighting needed
 	//
 	if ( tess.dlightBits && tess.shader->sort <= SS_OPAQUE
-		&& !(tess.shader->surfaceFlags & (SURF_NODLIGHT | SURF_SKY) ) ) {
+		&& !(tess.shader->surfaceFlags & (SURF_NODLIGHT | SURF_SKY) ) && !RB_Backend_RTDlights() ) {
 		ProjectDlightTexture();
 	}
 
@@ -1170,14 +1225,16 @@ void RB_StageIteratorVertexLitTexture( void )
 	//
 	// call special shade routine
 	//
+	s_clayWhite = ( RB_ClayStage( tess.xstages[0] ) == CLAY_WHITE );
 	R_BindAnimatedImage( &tess.xstages[0]->bundle[0] );
+	s_clayWhite = qfalse;
 	GL_State( tess.xstages[0]->stateBits );
 	R_DrawElements( input->numIndexes, input->indexes );
 
 	// 
 	// now do any dynamic lighting needed
 	//
-	if ( tess.dlightBits && tess.shader->sort <= SS_OPAQUE ) {
+	if ( tess.dlightBits && tess.shader->sort <= SS_OPAQUE && !RB_Backend_RTDlights() ) {
 		ProjectDlightTexture();
 	}
 
@@ -1240,7 +1297,9 @@ void RB_StageIteratorLightmappedMultitexture( void ) {
 	GL_SelectTexture( 0 );
 
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+	s_clayWhite = ( RB_ClayStage( tess.xstages[0] ) == CLAY_WHITE );
 	R_BindAnimatedImage( &tess.xstages[0]->bundle[0] );
+	s_clayWhite = qfalse;
 	qglTexCoordPointer( 2, GL_FLOAT, 16, tess.texCoords[0][0] );
 
 	//
@@ -1282,7 +1341,7 @@ void RB_StageIteratorLightmappedMultitexture( void ) {
 	// 
 	// now do any dynamic lighting needed
 	//
-	if ( tess.dlightBits && tess.shader->sort <= SS_OPAQUE ) {
+	if ( tess.dlightBits && tess.shader->sort <= SS_OPAQUE && !RB_Backend_RTDlights() ) {
 		ProjectDlightTexture();
 	}
 
