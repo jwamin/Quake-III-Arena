@@ -515,7 +515,8 @@ nonisolated final class MetalRenderer {
         var viewOrigin: SIMD4<Float>
         var viewport: SIMD4<Int32>
         var numLights: Int32
-        var pad: (Int32, Int32, Int32) = (0, 0, 0)
+        var debugView: Int32
+        var pad: (Int32, Int32) = (0, 0)
     }
 
     private static func matrix(_ m: (Float, Float, Float, Float, Float, Float, Float, Float,
@@ -528,7 +529,8 @@ nonisolated final class MetalRenderer {
     func traceDlights(_ viewPtr: UnsafePointer<mtl_rt_view_t>) {
         var view = viewPtr.pointee
         let numLights = Int(min(max(view.numLights, 0), MTL_RT_MAX_LIGHTS))
-        guard numLights > 0, let world = worldAccel, let pipeline = dlightPipeline() else { return }
+        let debugView = view.debugView != 0     // runs with no lights too: the view goes black
+        guard numLights > 0 || debugView, let world = worldAccel, let pipeline = dlightPipeline() else { return }
 
         // OpenGL window rectangle (origin bottom left) -> texture rectangle (origin top left)
         let vx = Int(view.viewport.0), vw = Int(view.viewport.2), vh = Int(view.viewport.3)
@@ -539,7 +541,7 @@ nonisolated final class MetalRenderer {
         var uniforms = RTUniforms(invViewProj: viewProj.inverse,
                                   viewOrigin: SIMD4(view.viewOrigin.0, view.viewOrigin.1, view.viewOrigin.2, 1),
                                   viewport: SIMD4(Int32(vx), Int32(vy), Int32(vw), Int32(vh)),
-                                  numLights: Int32(numLights))
+                                  numLights: Int32(numLights), debugView: debugView ? 1 : 0)
 
         guard let buffer = ensureCommandBuffer() else { return }
         endEncoding()   // drawing resumes in a new render pass that loads this one's result
@@ -550,7 +552,8 @@ nonisolated final class MetalRenderer {
         enc.setTexture(depthTarget, index: 1)
         enc.setBytes(&uniforms, length: MemoryLayout<RTUniforms>.stride, index: 0)
         withUnsafeBytes(of: &view.lights) { lights in
-            enc.setBytes(lights.baseAddress!, length: numLights * MemoryLayout<mtl_rt_light_t>.stride, index: 1)
+            // at least one (unused) light: setBytes needs a non-empty buffer
+            enc.setBytes(lights.baseAddress!, length: max(numLights, 1) * MemoryLayout<mtl_rt_light_t>.stride, index: 1)
         }
         enc.setAccelerationStructure(world, bufferIndex: 2)
         enc.dispatchThreads(MTLSize(width: vw, height: vh, depth: 1),

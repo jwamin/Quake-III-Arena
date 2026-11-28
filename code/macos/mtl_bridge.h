@@ -123,6 +123,7 @@ typedef struct {
 	float   viewOrigin[3];
 	int32_t viewport[4];    // OpenGL window coordinates (origin bottom left)
 	int32_t numLights;
+	int32_t debugView;      // r_rtShadows 2: show only the RT light (blue: shadowed)
 	mtl_rt_light_t lights[MTL_RT_MAX_LIGHTS];
 } mtl_rt_view_t;
 

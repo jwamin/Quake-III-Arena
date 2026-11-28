@@ -220,7 +220,8 @@ void RB_Backend_OpaqueDone( void ) {
 			n++;
 		}
 	}
-	if ( !n ) {
+	view.debugView = ( r_rtShadows->integer == 2 );
+	if ( !n && !view.debugView ) {
 		return;
 	}
 	view.numLights = n;

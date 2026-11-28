@@ -191,6 +191,7 @@ struct RTUniforms {
     float4   viewOrigin;
     int4     viewport;       // x, y, width, height in texture pixels (origin top left)
     int      numLights;
+    int      debugView;      // r_rtShadows 2
 };
 
 // Q3 squeezes the view weapon into depth [0, 0.3] (RF_DEPTHHACK). No world
@@ -221,7 +222,11 @@ kernel void rt_dlights(texture2d<float, access::read_write> color [[texture(0)]]
     int2 p = u.viewport.xy + int2(tid);
     float d = depth.read(uint2(p));
     if (d >= 1.0) {
-        return;                          // nothing drawn (sky is drawn at the far plane too)
+        // nothing drawn (sky is drawn at the far plane too)
+        if (u.debugView) {
+            color.write(float4(0.0, 0.0, 0.0, 1.0), uint2(p));
+        }
+        return;
     }
     float3 P = rtWorldPos(p, d, u);
 
@@ -236,6 +241,9 @@ kernel void rt_dlights(texture2d<float, access::read_write> color [[texture(0)]]
     float3 N = cross(dx, dy);
     float nlen = length(N);
     if (nlen < 1e-6) {
+        if (u.debugView) {
+            color.write(float4(0.0, 0.0, 0.0, 1.0), uint2(p));
+        }
         return;
     }
     N /= nlen;
@@ -250,6 +258,7 @@ kernel void rt_dlights(texture2d<float, access::read_write> color [[texture(0)]]
     shadow.force_opacity(forced_opacity::opaque);
 
     float3 sum = 0.0;
+    float shadowed = 0.0;    // light the shadow rays blocked (debug view)
     for (int i = 0; i < u.numLights; i++) {
         float3 L = lights[i].originRadius.xyz - P;
         float dist = length(L);
@@ -281,9 +290,17 @@ kernel void rt_dlights(texture2d<float, access::read_write> color [[texture(0)]]
         r0.min_distance = 0.0;
         r0.max_distance = max(dist - 1.0, 0.0);
         if (shadow.intersect(r0, world).type != intersection_type::none) {
+            shadowed += intensity * ndl;
             continue;
         }
         sum += lights[i].color.rgb * (intensity * ndl);
+    }
+    if (u.debugView) {
+        // r_rtShadows 2: only the ray traced light on black; blue where the
+        // shadow rays were blocked
+        float3 c = sum + float3(0.15, 0.3, 1.0) * saturate(shadowed) * 0.6;
+        color.write(float4(saturate(c), 1.0), uint2(p));
+        return;
     }
     if (all(sum == 0.0)) {
         return;

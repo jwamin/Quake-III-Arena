@@ -26,7 +26,7 @@ cvar_t *in_nograb;
 cvar_t *r_renderer;         // "metal" or "opengl" (latched)
 cvar_t *r_mtlUpscale;       // 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised
 cvar_t *r_mtlRenderScale;   // internal resolution as a fraction of r_mode
-cvar_t *r_rtShadows;        // ray traced dynamic lights and shadows (mtl_rt.c); not latched
+cvar_t *r_rtShadows;        // 1: ray traced dynamic lights and shadows, 2: debug view (mtl_rt.c); not latched
 cvar_t *r_rtDebugLight;     // "x y z radius": a white test light for the RT pass
 
 static qboolean mouse_avail;

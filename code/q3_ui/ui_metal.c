@@ -7,7 +7,8 @@ these tabs appear only there. See docs/metal-rt.md for the cvars.
 
   METAL        r_renderer (Metal / OpenGL), r_mtlUpscale, r_mtlRenderScale;
                latched, applied with Accept (vid_restart)
-  RAY TRACING  r_rtShadows, r_clay; applied immediately, need the Metal
+  RAY TRACING  r_rtShadows (Off / On / Debug View), r_clay; applied
+               immediately, need the Metal
                renderer
 
 The other System Setup pages add the two tabs with UI_MetalTabs_Add.
@@ -117,6 +118,7 @@ static const char *scale_names[] = { "100%", "75%", "67%", "50%", "33%", 0 };
 static const float scale_values[] = { 1.0f, 0.75f, 0.67f, 0.5f, 0.34f };
 #define NUM_SCALES	( sizeof( scale_values ) / sizeof( scale_values[0] ) )
 static const char *onoff_names[] = { "Off", "On", 0 };
+static const char *rtlights_names[] = { "Off", "On", "Debug View", 0 };	// r_rtShadows 0..2
 
 typedef struct {
 	menuframework_s	menu;
@@ -346,11 +348,14 @@ static void MetalOptions_Init( int tab ) {
 		Menu_AddItem( &s_metal.menu, &s_metal.upscale );
 		Menu_AddItem( &s_metal.menu, &s_metal.scale );
 	} else {
-		MetalOptions_List( &s_metal.rtLights, ID_RTLIGHTS, "Ray Traced Lights:", onoff_names, y );
+		MetalOptions_List( &s_metal.rtLights, ID_RTLIGHTS, "Ray Traced Lights:", rtlights_names, y );
 		y += BIGCHAR_HEIGHT + 2;
 		// lighting only, to look at the ray traced light
 		MetalOptions_List( &s_metal.clay, ID_CLAY, "Clay Mode:", onoff_names, y );
-		s_metal.rtLights.curvalue = trap_Cvar_VariableValue( "r_rtShadows" ) != 0;
+		s_metal.rtLights.curvalue = trap_Cvar_VariableValue( "r_rtShadows" );
+		if ( s_metal.rtLights.curvalue < 0 || s_metal.rtLights.curvalue > 2 ) {
+			s_metal.rtLights.curvalue = 1;
+		}
 		s_metal.clay.curvalue = trap_Cvar_VariableValue( "r_clay" ) != 0;
 		if ( !UI_MetalRendererActive() ) {
 			s_metal.rtLights.generic.flags |= QMF_GRAYED;
