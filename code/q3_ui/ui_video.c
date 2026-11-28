@@ -278,6 +278,7 @@ typedef struct {
 	menulist_s  	colordepth;
 	menulist_s  	geometry;
 	menulist_s  	filter;
+	menulist_s  	clay;
 	menulist_s  	mtlUpscale;
 	menulist_s  	mtlScale;
 	menutext_s		driverinfo;
@@ -300,6 +301,7 @@ typedef struct
 	qboolean extensions;
 	int mtlUpscale;
 	int mtlScale;
+	int clay;
 } InitialVideoOptions_s;
 
 /*
@@ -373,6 +375,7 @@ static void GraphicsOptions_GetInitialVideo( void )
 	s_ivo.texturebits = s_graphicsoptions.texturebits.curvalue;
 	s_ivo.mtlUpscale  = s_graphicsoptions.mtlUpscale.curvalue;
 	s_ivo.mtlScale    = s_graphicsoptions.mtlScale.curvalue;
+	s_ivo.clay        = s_graphicsoptions.clay.curvalue;
 }
 
 /*
@@ -488,6 +491,10 @@ static void GraphicsOptions_UpdateMenuItems( void )
 	{
 		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
 	}
+	if ( s_ivo.clay != s_graphicsoptions.clay.curvalue )
+	{
+		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
+	}
 	if ( s_ivo.mtlUpscale != s_graphicsoptions.mtlUpscale.curvalue )
 	{
 		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
@@ -579,6 +586,8 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 	{
 		trap_Cvar_Set( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST" );
 	}
+
+	trap_Cvar_SetValue( "r_clay", s_graphicsoptions.clay.curvalue );
 
 	if ( GraphicsOptions_IsMetal() )
 	{
@@ -693,6 +702,8 @@ static void GraphicsOptions_SetMenuItems( void )
 	{
 		s_graphicsoptions.mode.curvalue = s_customMode ? NUM_FIXED_MODES : 3;
 	}
+
+	s_graphicsoptions.clay.curvalue = trap_Cvar_VariableValue( "r_clay" ) != 0;
 
 	if ( GraphicsOptions_IsMetal() )
 	{
@@ -1076,6 +1087,15 @@ void GraphicsOptions_MenuInit( void )
 	s_graphicsoptions.filter.itemnames      = filter_names;
 	y += BIGCHAR_HEIGHT+2;
 
+	// references/modifies "r_clay": lighting only, surfaces drawn plain grey
+	s_graphicsoptions.clay.generic.type		= MTYPE_SPINCONTROL;
+	s_graphicsoptions.clay.generic.name		= "Clay Mode:";
+	s_graphicsoptions.clay.generic.flags	= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_graphicsoptions.clay.generic.x		= 400;
+	s_graphicsoptions.clay.generic.y		= y;
+	s_graphicsoptions.clay.itemnames		= enabled_names;
+	y += BIGCHAR_HEIGHT+2;
+
 	if ( GraphicsOptions_IsMetal() )
 	{
 		// references/modifies "r_mtlUpscale"
@@ -1150,6 +1170,7 @@ void GraphicsOptions_MenuInit( void )
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.tq );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.texturebits );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.filter );
+	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.clay );
 	if ( GraphicsOptions_IsMetal() )
 	{
 		Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.mtlUpscale );

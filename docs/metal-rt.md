@@ -99,6 +99,7 @@ and turns itself off with a console message when it is missing.
 | `r_mtlUpscale` | 0 | 0 off, 1 MetalFX spatial, 2 temporal, 3 temporal denoised |
 | `r_mtlRenderScale` | 1.0 | internal resolution as a fraction of `r_mode` (0.34–1.0) |
 | `r_rtShadows` | 0 | 0 off, 1 ray traced dynamic lights with shadows, 2 also sun shadows. **Not latched**: toggles live (the world acceleration structure is always built when the GPU supports ray tracing) |
+| `r_clay` | 0 | shared renderer, not latched, also in System > Graphics: lighting only. Opaque base textures are drawn mid grey (`tr.identityLightImage`), texture-times-lightmap filter stages are skipped; lightmaps, glows, alpha-tested surfaces, sky and 2D are unchanged |
 | `r_rtDebugLight` | "" | cheat, not archived: `"x y z radius"` adds a white light to the RT pass, for testing |
 | `r_rtReflections` | 0 | ray-traced reflections on environment-mapped surfaces |
 | `r_rtGI` | 0 | one-bounce indirect light from dynamic lights |
@@ -132,7 +133,10 @@ Example: `quake3-metal +set r_mtlUpscale 1 +set r_mtlRenderScale 0.5`.
 3. Camera jitter, motion vectors, MetalFX temporal upscaling.
 4. G-buffer attachment (normal, albedo, roughness), RT reflections, entity
    instances.
-5. Temporal denoised upscaling, sun shadows, GI.
+5. Temporal denoised upscaling, sun shadows, GI. The denoiser stays
+   switchable: `r_mtlUpscale 2` is temporal upscaling without it, `3` with
+   it. (Phase 2's RT pass is one hard shadow ray per light, so there is
+   nothing to denoise before this phase.)
 
 Each phase is checked by running `quake3-metal` on retail maps with
 screenshots, and by the Linux SDL/GL build staying green.
