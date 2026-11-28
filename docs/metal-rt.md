@@ -141,6 +141,13 @@ The SDL/GL build shows the stock pages.
 - `timedemo four`, M4, 1024x768: 284 fps off, 256 fps on. Frames without
   dlights are bit-identical with it on and off.
 
+## Planned: relight from the map's own lights
+
+`docs/metal-rt-relight.md` plans `r_rtRelight`: lightmaps replaced by ray
+traced direct light from the map's light entities, surface lights and sun,
+evaluated with q3map's own formulas (`q3map/light.c`) so the result can be
+checked against the baked lightmaps. Not implemented yet.
+
 ## Phases
 
 1. Cvars, internal resolution and MetalFX spatial upscaling. **(done)**
