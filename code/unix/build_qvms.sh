@@ -31,8 +31,14 @@ if [ ! -x "$BIN/q3lcc" ] || [ ! -x "$BIN/q3asm" ]; then
     mkdir -p "$WORK/lcc/out"
     # lburg/gram.c is shipped pre-generated; stop make from trying to run yacc
     touch "$WORK/lcc/lburg/gram.c"
-    ( cd "$WORK/lcc" && make BUILDDIR="$WORK/lcc/out" CC=gcc LD=gcc \
-        CFLAGS="-g -O0 -std=gnu89 -fcommon -w" HOSTFILE=etc/linux.c TEMPDIR=/tmp all >/dev/null )
+    # macOS: the makefile derives SYSTEM from gcc's -print-search-dirs, which
+    # clang prints differently; it is only used for host C include/link paths,
+    # never for bytecode, so any directory will do.
+    # -D_FORTIFY_SOURCE=0: lcc's cpp defines its own memmove.
+    MAKE_EXTRA=
+    [ "$(uname -s)" = Darwin ] && MAKE_EXTRA="SYSTEM=/usr/lib/"
+    ( cd "$WORK/lcc" && make BUILDDIR="$WORK/lcc/out" CC=gcc LD=gcc $MAKE_EXTRA \
+        CFLAGS="-g -O0 -std=gnu89 -fcommon -w -D_FORTIFY_SOURCE=0" HOSTFILE=etc/linux.c TEMPDIR=/tmp all >/dev/null )
     cp "$WORK/lcc/out/lcc" "$BIN/q3lcc"
     cp "$WORK/lcc/out/rcc" "$BIN/q3rcc"
     cp "$WORK/lcc/out/cpp" "$BIN/q3cpp"

@@ -278,6 +278,8 @@ typedef struct {
 	menulist_s  	colordepth;
 	menulist_s  	geometry;
 	menulist_s  	filter;
+	menulist_s  	mtlUpscale;
+	menulist_s  	mtlScale;
 	menutext_s		driverinfo;
 
 	menubitmap_s	apply;
@@ -296,7 +298,37 @@ typedef struct
 	int filter;
 	int driver;
 	qboolean extensions;
+	int mtlUpscale;
+	int mtlScale;
 } InitialVideoOptions_s;
+
+/*
+** Metal renderer (macOS) settings, shown only when the Metal renderer is
+** running.  See docs/metal-rt.md.
+*/
+#define MTL_UPSCALE_MODES	2		// r_mtlUpscale 0 off, 1 MetalFX spatial
+
+static const float mtl_scale_values[] = { 1.0f, 0.75f, 0.67f, 0.5f, 0.34f };
+#define NUM_MTL_SCALES	( sizeof( mtl_scale_values ) / sizeof( mtl_scale_values[0] ) )
+
+static qboolean GraphicsOptions_IsMetal( void ) {
+	return Q_stricmpn( uis.glconfig.renderer_string, "Metal", 5 ) == 0;
+}
+
+/*
+** r_mode -1 (r_customwidth x r_customheight) is offered as an extra entry
+** after the fixed modes, so the menu does not replace a custom mode.
+*/
+#define NUM_FIXED_MODES	12
+static qboolean	s_customMode;
+static char		s_customModeName[32];
+
+static int GraphicsOptions_ModeToCvar( int curvalue ) {
+	if ( s_customMode && curvalue == NUM_FIXED_MODES ) {
+		return -1;
+	}
+	return curvalue;
+}
 
 static InitialVideoOptions_s	s_ivo;
 static graphicsoptions_t		s_graphicsoptions;	
@@ -339,6 +371,8 @@ static void GraphicsOptions_GetInitialVideo( void )
 	s_ivo.geometry    = s_graphicsoptions.geometry.curvalue;
 	s_ivo.filter      = s_graphicsoptions.filter.curvalue;
 	s_ivo.texturebits = s_graphicsoptions.texturebits.curvalue;
+	s_ivo.mtlUpscale  = s_graphicsoptions.mtlUpscale.curvalue;
+	s_ivo.mtlScale    = s_graphicsoptions.mtlScale.curvalue;
 }
 
 /*
@@ -454,6 +488,23 @@ static void GraphicsOptions_UpdateMenuItems( void )
 	{
 		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
 	}
+	if ( s_ivo.mtlUpscale != s_graphicsoptions.mtlUpscale.curvalue )
+	{
+		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
+	}
+	if ( s_ivo.mtlScale != s_graphicsoptions.mtlScale.curvalue )
+	{
+		s_graphicsoptions.apply.generic.flags &= ~(QMF_HIDDEN|QMF_INACTIVE);
+	}
+
+	// the render scale only matters while upscaling
+	if ( GraphicsOptions_IsMetal() )
+	{
+		if ( s_graphicsoptions.mtlUpscale.curvalue == 0 )
+			s_graphicsoptions.mtlScale.generic.flags |= QMF_GRAYED;
+		else
+			s_graphicsoptions.mtlScale.generic.flags &= ~QMF_GRAYED;
+	}
 
 	GraphicsOptions_CheckConfig();
 }	
@@ -482,7 +533,7 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 	}
 	trap_Cvar_SetValue( "r_picmip", 3 - s_graphicsoptions.tq.curvalue );
 	trap_Cvar_SetValue( "r_allowExtensions", s_graphicsoptions.allow_extensions.curvalue );
-	trap_Cvar_SetValue( "r_mode", s_graphicsoptions.mode.curvalue );
+	trap_Cvar_SetValue( "r_mode", GraphicsOptions_ModeToCvar( s_graphicsoptions.mode.curvalue ) );
 	trap_Cvar_SetValue( "r_fullscreen", s_graphicsoptions.fs.curvalue );
 	trap_Cvar_Set( "r_glDriver", ( char * ) s_drivers[s_graphicsoptions.driver.curvalue] );
 	switch ( s_graphicsoptions.colordepth.curvalue )
@@ -527,6 +578,12 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 	else
 	{
 		trap_Cvar_Set( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST" );
+	}
+
+	if ( GraphicsOptions_IsMetal() )
+	{
+		trap_Cvar_SetValue( "r_mtlUpscale", s_graphicsoptions.mtlUpscale.curvalue );
+		trap_Cvar_SetValue( "r_mtlRenderScale", mtl_scale_values[s_graphicsoptions.mtlScale.curvalue] );
 	}
 
 	trap_Cmd_ExecuteText( EXEC_APPEND, "vid_restart\n" );
@@ -634,7 +691,24 @@ static void GraphicsOptions_SetMenuItems( void )
 	s_graphicsoptions.mode.curvalue = trap_Cvar_VariableValue( "r_mode" );
 	if ( s_graphicsoptions.mode.curvalue < 0 )
 	{
-		s_graphicsoptions.mode.curvalue = 3;
+		s_graphicsoptions.mode.curvalue = s_customMode ? NUM_FIXED_MODES : 3;
+	}
+
+	if ( GraphicsOptions_IsMetal() )
+	{
+		float	scale;
+		int		i, best;
+
+		s_graphicsoptions.mtlUpscale.curvalue = trap_Cvar_VariableValue( "r_mtlUpscale" ) != 0;
+		// pick the listed scale closest to the cvar
+		scale = trap_Cvar_VariableValue( "r_mtlRenderScale" );
+		best = 0;
+		for ( i = 1; i < NUM_MTL_SCALES; i++ )
+		{
+			if ( fabs( mtl_scale_values[i] - scale ) < fabs( mtl_scale_values[best] - scale ) )
+				best = i;
+		}
+		s_graphicsoptions.mtlScale.curvalue = best;
 	}
 	s_graphicsoptions.fs.curvalue = trap_Cvar_VariableValue("r_fullscreen");
 	s_graphicsoptions.allow_extensions.curvalue = trap_Cvar_VariableValue("r_allowExtensions");
@@ -773,6 +847,22 @@ void GraphicsOptions_MenuInit( void )
 		"1600x1200",
 		"2048x1536",
 		"856x480 wide screen",
+		0,		// custom mode (r_mode -1), filled in below
+		0
+	};
+	static const char *mtl_upscale_names[] =
+	{
+		"Off",
+		"MetalFX Spatial",
+		0
+	};
+	static const char *mtl_scale_names[] =
+	{
+		"100%",
+		"75%",
+		"67%",
+		"50%",
+		"33%",
 		0
 	};
 	static const char *filter_names[] =
@@ -799,6 +889,18 @@ void GraphicsOptions_MenuInit( void )
 
 	// zero set all our globals
 	memset( &s_graphicsoptions, 0 ,sizeof(graphicsoptions_t) );
+
+	s_customMode = ( trap_Cvar_VariableValue( "r_mode" ) == -1 );
+	if ( s_customMode )
+	{
+		Com_sprintf( s_customModeName, sizeof( s_customModeName ), "Custom %dx%d",
+			(int)trap_Cvar_VariableValue( "r_customwidth" ), (int)trap_Cvar_VariableValue( "r_customheight" ) );
+		resolutions[NUM_FIXED_MODES] = s_customModeName;
+	}
+	else
+	{
+		resolutions[NUM_FIXED_MODES] = 0;
+	}
 
 	GraphicsOptions_Cache();
 
@@ -972,7 +1074,29 @@ void GraphicsOptions_MenuInit( void )
 	s_graphicsoptions.filter.generic.x	    = 400;
 	s_graphicsoptions.filter.generic.y	    = y;
 	s_graphicsoptions.filter.itemnames      = filter_names;
-	y += 2*BIGCHAR_HEIGHT;
+	y += BIGCHAR_HEIGHT+2;
+
+	if ( GraphicsOptions_IsMetal() )
+	{
+		// references/modifies "r_mtlUpscale"
+		s_graphicsoptions.mtlUpscale.generic.type	= MTYPE_SPINCONTROL;
+		s_graphicsoptions.mtlUpscale.generic.name	= "Upscaling:";
+		s_graphicsoptions.mtlUpscale.generic.flags	= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+		s_graphicsoptions.mtlUpscale.generic.x		= 400;
+		s_graphicsoptions.mtlUpscale.generic.y		= y;
+		s_graphicsoptions.mtlUpscale.itemnames		= mtl_upscale_names;
+		y += BIGCHAR_HEIGHT+2;
+
+		// references/modifies "r_mtlRenderScale"
+		s_graphicsoptions.mtlScale.generic.type		= MTYPE_SPINCONTROL;
+		s_graphicsoptions.mtlScale.generic.name		= "Render Scale:";
+		s_graphicsoptions.mtlScale.generic.flags	= QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+		s_graphicsoptions.mtlScale.generic.x		= 400;
+		s_graphicsoptions.mtlScale.generic.y		= y;
+		s_graphicsoptions.mtlScale.itemnames		= mtl_scale_names;
+		y += BIGCHAR_HEIGHT+2;
+	}
+	y += BIGCHAR_HEIGHT-2;
 
 	s_graphicsoptions.driverinfo.generic.type     = MTYPE_PTEXT;
 	s_graphicsoptions.driverinfo.generic.flags    = QMF_CENTER_JUSTIFY|QMF_PULSEIFFOCUS;
@@ -1026,6 +1150,11 @@ void GraphicsOptions_MenuInit( void )
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.tq );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.texturebits );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.filter );
+	if ( GraphicsOptions_IsMetal() )
+	{
+		Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.mtlUpscale );
+		Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.mtlScale );
+	}
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.driverinfo );
 
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.back );
